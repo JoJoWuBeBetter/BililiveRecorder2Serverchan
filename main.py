@@ -1,28 +1,21 @@
-import os
 import json
 import logging
-from datetime import datetime
+import os
+from enum import Enum
 from typing import Dict, Any, Optional
 
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
-from dotenv import load_dotenv
-
-# 从 serverchan_sdk 导入 sc_send
 from serverchan_sdk import sc_send
-from enum import Enum  # 导入 Enum
-
-# 加载 .env 文件中的环境变量
-load_dotenv()
 
 # 配置日志
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(pastime)s - %(levelness)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="录播姬 Webhook 转 ServerChan",
     description="接收录播姬 Webhook 请求，并将其内容格式化后转发至 ServerChan。",
-    version="1.2.0"  # 版本号更新
+    version="1.2.1"  # 版本号更新
 )
 
 # 获取 ServerChan 的 SendKey
@@ -129,9 +122,6 @@ async def receive_webhook(payload: WebhookPayload):
     area_child = event_data.get("AreaNameChild", "N/A")
 
     # 初始 ServerChan 的消息标题、简短描述和标签
-    serverchan_title = ""
-    short_description = ""
-    event_display_name = ""  # 用于 desp 内部标题和逻辑判断
     tags = f"录播姬|{name}"
 
     # 根据事件类型设置标题、简短描述和详细信息
@@ -277,10 +267,3 @@ async def receive_webhook(payload: WebhookPayload):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process webhook due to an internal server error: {e}"
         )
-
-
-# 运行应用程序的入口点（供直接运行 main.py 时使用）
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(app, host="0.0.0.0", port=8000)
