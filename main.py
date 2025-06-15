@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from serverchan_sdk import sc_send
 
 # 配置日志
-logging.basicConfig(level=logging.INFO, format='%(pastime)s - %(levelness)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
