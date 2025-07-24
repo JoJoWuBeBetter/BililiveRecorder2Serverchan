@@ -1,5 +1,6 @@
 import os
 import logging
+from typing import Tuple, Optional
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -11,6 +12,9 @@ SERVERCHAN_SEND_KEY = os.getenv("SERVERCHAN_SEND_KEY")
 # 腾讯云配置
 TENCENTCLOUD_SECRET_ID = os.getenv("TENCENTCLOUD_SECRET_ID")
 TENCENTCLOUD_SECRET_KEY = os.getenv("TENCENTCLOUD_SECRET_KEY")
+
+TENCENTCLOUD_COS_BUCKET = os.getenv("TENCENTCLOUD_COS_BUCKET")
+TENCENTCLOUD_COS_REGION = os.getenv("TENCENTCLOUD_COS_REGION")
 
 # 检查 SendKey 是否已配置
 if not SERVERCHAN_SEND_KEY:
@@ -30,3 +34,13 @@ def get_serverchan_send_key() -> str:
 def get_tencentcloud_credentials() -> tuple[str, str]:
     """提供一个函数来获取腾讯云 SecretId 和 SecretKey"""
     return TENCENTCLOUD_SECRET_ID, TENCENTCLOUD_SECRET_KEY
+
+
+def get_tencentcloud_cos_credentials() -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """提供一个函数来获取腾讯云 COS 存储桶相关参数"""
+    return TENCENTCLOUD_SECRET_ID, TENCENTCLOUD_SECRET_KEY, TENCENTCLOUD_COS_BUCKET, TENCENTCLOUD_COS_REGION
+
+
+def get_tencentcloud_cos_region() -> str:
+    """提供一个函数来获取腾讯云 COS 地域"""
+    return TENCENTCLOUD_COS_REGION

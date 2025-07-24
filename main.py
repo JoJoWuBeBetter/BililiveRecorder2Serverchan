@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api.routers import webhook  # 导入 webhook 路由器
+from api.routers import webhook, cos_api  # 导入 webhook 路由器
 from config import logger  # 导入 config 中的 logger，确保日志配置一致
 
 app = FastAPI(
@@ -10,6 +10,7 @@ app = FastAPI(
 
 # 包含 Webhook 路由
 app.include_router(webhook.router)
+app.include_router(cos_api.router)
 
 
 @app.get("/")
