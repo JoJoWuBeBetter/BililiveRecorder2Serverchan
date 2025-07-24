@@ -1,6 +1,13 @@
 from fastapi import FastAPI
-from api.routers import webhook, cos_api  # 导入 webhook 路由器
+from api.routers import webhook, cos_api, task_api  # 导入 webhook 路由器
 from config import logger  # 导入 config 中的 logger，确保日志配置一致
+from database import create_db_and_tables
+
+# 在应用启动时，同步地创建数据库和所有表
+# 这行代码将读取所有继承自 Base 的模型，并在数据库中创建对应的表
+print("Attempting to create database tables...")
+create_db_and_tables()
+print("Database tables creation process finished.")
 
 app = FastAPI(
     title="录播姬 Webhook 转 ServerChan",
@@ -11,6 +18,7 @@ app = FastAPI(
 # 包含 Webhook 路由
 app.include_router(webhook.router)
 app.include_router(cos_api.router)
+app.include_router(task_api.router)
 
 
 @app.get("/")
@@ -26,4 +34,4 @@ if __name__ == "__main__":
 
     # 确保在启动前，环境变量 SERVERCHAN_SEND_KEY 已经设置
     logger.info("Starting FastAPI application...")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=18000)

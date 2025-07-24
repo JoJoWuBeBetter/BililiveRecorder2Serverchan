@@ -4,7 +4,7 @@ import os
 from fastapi import APIRouter, HTTPException, status, Query
 from config import logger  # 从您的全局配置导入 logger
 from services.tencent_cloud_cos import TencentCosService
-from models import CosUploadRequest, CosUploadResponse, CosUrlResponse
+from models.cos import CosUploadRequest, CosUploadResponse, CosUrlResponse
 
 # 创建一个新的 APIRouter 实例
 router = APIRouter(

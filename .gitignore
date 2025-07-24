@@ -241,3 +241,21 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# 忽略所有 .db 结尾的文件
+*.db
+
+# 忽略所有常见的音频文件格式
+*.mp3
+*.wav
+*.ogg
+*.oga
+*.flac
+*.aac
+*.wma
+*.aiff
+*.aif
+*.opus
+*.m4a
+*.mid
+*.midi
+

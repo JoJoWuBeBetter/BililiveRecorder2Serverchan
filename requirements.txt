@@ -6,3 +6,4 @@ gunicorn~=23.0.0
 tencentcloud-sdk-python-common~=3.0.1407
 tencentcloud-sdk-python-asr~=3.0.1407
 cos-python-sdk-v5~=1.9.37
+sqlalchemy~=2.0.41

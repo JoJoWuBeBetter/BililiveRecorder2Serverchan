@@ -1,6 +1,6 @@
 import logging
 from fastapi import APIRouter, HTTPException, status
-from models import WebhookPayload
+from models.webhook import WebhookPayload
 from services import webhook_processor, serverchan  # 注意这里的导入路径
 
 logger = logging.getLogger(__name__)
