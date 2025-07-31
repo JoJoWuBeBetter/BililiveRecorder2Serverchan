@@ -10,6 +10,7 @@ services:
     # 从当前目录的 Dockerfile 构建镜像
     # 这比直接使用已构建的镜像更灵活，每次启动都能确保代码是新的
     build: .
+    image: bililive2serverchan:2.0.2
     # 给容器起一个固定的名字，方便管理
     container_name: bililive-helper
     # 设置容器的重启策略，'always' 表示容器总是在退出后自动重启
