@@ -1,0 +1,30 @@
+# docker-compose.yml
+
+# 使用版本 '3.8'，这是一个功能稳定且广泛使用的版本
+version: '3.8'
+
+# 定义服务列表
+services:
+  # 服务的名称，可以自定义，这里我们叫它 'app'
+  app:
+    # 从当前目录的 Dockerfile 构建镜像
+    # 这比直接使用已构建的镜像更灵活，每次启动都能确保代码是新的
+    build: .
+    # 给容器起一个固定的名字，方便管理
+    container_name: bililive-helper
+    # 设置容器的重启策略，'always' 表示容器总是在退出后自动重启
+    restart: always
+    # 端口映射
+    # 将宿主机的 18888 端口映射到容器的 8000 端口
+    ports:
+      - "18888:8000"
+    # 数据卷映射 (非常重要！)
+    # 用于持久化数据库文件，避免容器删除后数据丢失
+    volumes:
+      # 将宿主机当前目录下的 data/transcription_tasks.db 文件
+      # 映射到容器内的 /app/transcription_tasks.db 文件
+      - ./data/transcription_tasks.db:/app/transcription_tasks.db
+    # 指定环境变量文件的位置
+    # Docker Compose 会自动加载 .env 文件中的变量并注入到容器中
+    env_file:
+      - .env
