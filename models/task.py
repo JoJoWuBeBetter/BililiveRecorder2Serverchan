@@ -26,6 +26,7 @@ class TranscriptionTask(Base):
         primary_key=True,
         default=uuid.uuid4  # 使用 uuid.uuid4 作为默认值生成函数
     )
+    batch_id = Column(UUID(as_uuid=True), index=True, nullable=True)  # 允许为空，因为单个任务可能没有批次ID
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

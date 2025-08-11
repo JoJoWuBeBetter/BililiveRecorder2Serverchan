@@ -12,7 +12,10 @@ def get_task(db: Session, task_id: uuid.UUID):
 
 
 def create_task(db: Session, task_data: TaskCreate) -> TranscriptionTask:
-    db_task = TranscriptionTask(original_audio_path=task_data.local_audio_path)
+    db_task = TranscriptionTask(
+        original_audio_path=task_data.local_audio_path,
+        batch_id=task_data.batch_id
+    )
     db.add(db_task)
     db.commit()
     db.refresh(db_task)

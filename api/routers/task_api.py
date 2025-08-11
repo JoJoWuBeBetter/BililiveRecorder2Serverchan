@@ -90,6 +90,8 @@ async def create_batch_transcription_task(
         "res_text_format": batch_request.res_text_format,
     }
 
+    batch_id = uuid.uuid4()
+
     # --- 2. 遍历文件夹中的文件 ---
     for filename in os.listdir(batch_request.directory_path):
         full_path = os.path.join(batch_request.directory_path, filename)
@@ -111,6 +113,7 @@ async def create_batch_transcription_task(
             engine_model_type=batch_request.engine_model_type,
             channel_num=batch_request.channel_num,
             res_text_format=batch_request.res_text_format,
+            batch_id=batch_id
         )
 
         # b. 在数据库中创建任务记录

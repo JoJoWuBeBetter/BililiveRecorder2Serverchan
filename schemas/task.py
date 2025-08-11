@@ -13,10 +13,12 @@ class TaskCreate(BaseModel):
     engine_model_type: str = "16k_zh_large"  # 可以设置默认值或让用户指定
     channel_num: int = 1
     res_text_format: int = 0
+    batch_id: Optional[uuid.UUID] = None
 
 
 class Task(BaseModel):
     id: uuid.UUID
+    batch_id: Optional[uuid.UUID] = None
     status: TaskStatus
     original_audio_path: str
     cos_key: Optional[str] = None
