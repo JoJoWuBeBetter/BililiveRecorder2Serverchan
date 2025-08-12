@@ -25,6 +25,7 @@ services:
       # 将宿主机当前目录下的 data/transcription_tasks.db 文件
       # 映射到容器内的 /app/transcription_tasks.db 文件
       - ./data/transcription_tasks.db:/app/transcription_tasks.db
+      - ./videos:/app/videos
     # 指定环境变量文件的位置
     # Docker Compose 会自动加载 .env 文件中的变量并注入到容器中
     env_file:
