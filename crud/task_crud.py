@@ -33,3 +33,7 @@ def update_task(db: Session, task_id: uuid.UUID, updates: dict):
         db.refresh(task)
         return task
     return None
+
+
+def get_tasks_by_batch_id(db: Session, batch_id: uuid.UUID):
+    return db.query(TranscriptionTask).filter_by(batch_id=batch_id).all()

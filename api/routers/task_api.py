@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from config import logger
-from crud.task_crud import create_task, get_task
+from crud.task_crud import create_task, get_task, get_tasks_by_batch_id
 from database import SessionLocal
+from models.task import BatchTranscriptionResults, TaskStatus
 from schemas.task import TaskCreate, Task, BatchTaskCreate
 from services import transcription_service
 
@@ -143,3 +144,59 @@ async def get_task_status(task_id: uuid.UUID, db: Session = Depends(get_db)):
     if db_task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
     return db_task
+
+
+@router.get("/batch/{batch_id}/results", response_model=BatchTranscriptionResults)
+async def get_batch_transcription_results(
+        batch_id: uuid.UUID,
+        db: Session = Depends(get_db)
+):
+    """
+    根据批量任务ID查询所有关联任务的状态和转写结果。
+    如果批量任务中所有子任务都已完成，则返回所有转写结果。
+    否则，返回一个提示信息，指出任务仍在处理中。
+    """
+    logger.info(f"Received request for batch transcription results for batch_id: {batch_id}")
+
+    # 1. 查询该批量ID下的所有任务
+    tasks = get_tasks_by_batch_id(db, batch_id)
+
+    if not tasks:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No tasks found for batch_id: {batch_id}"
+        )
+
+    all_completed = True
+    transcription_results_list = []
+    completed_count = 0
+    total_count = len(tasks)
+
+    # 2. 遍历所有任务，检查状态并收集结果
+    for task in tasks:
+        if task.status == TaskStatus.COMPLETED:
+            completed_count += 1
+            if task.transcription_result:  # 确保结果不为空
+                transcription_results_list.append(task.transcription_result)
+        else:
+            all_completed = False  # 发现有未完成的任务
+
+    # 3. 根据是否全部完成构造响应
+    if all_completed:
+        logger.info(f"All {total_count} tasks in batch {batch_id} are completed.")
+        return BatchTranscriptionResults(
+            batch_id=batch_id,
+            status=TaskStatus.COMPLETED,
+            results=transcription_results_list,
+            completed_count=completed_count,
+            total_count=total_count
+        )
+    else:
+        logger.info(f"Batch {batch_id} is still in progress. {completed_count}/{total_count} tasks completed.")
+        return BatchTranscriptionResults(
+            batch_id=batch_id,
+            status=TaskStatus.PROCESSING,
+            message=f"Batch tasks are still processing. {completed_count}/{total_count} tasks completed.",
+            completed_count=completed_count,
+            total_count=total_count
+        )

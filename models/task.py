@@ -1,7 +1,9 @@
 # models/task.py
 import enum
 import uuid
+from typing import Optional, List
 
+from pydantic import BaseModel
 from sqlalchemy import Column, Integer, String, DateTime, Enum as EnumDB
 from sqlalchemy import UUID
 from sqlalchemy.sql import func
@@ -45,3 +47,12 @@ class TranscriptionTask(Base):
     # 结果
     transcription_result = Column(String, nullable=True)
     error_message = Column(String, nullable=True)
+
+
+class BatchTranscriptionResults(BaseModel):
+    batch_id: uuid.UUID
+    status: TaskStatus  # "COMPLETED" or "IN_PROGRESS"
+    message: Optional[str] = None
+    results: Optional[List[str]] = None  # 只包含已完成任务的转写结果
+    completed_count: int
+    total_count: int
