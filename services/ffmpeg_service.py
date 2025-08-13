@@ -3,6 +3,7 @@ import logging
 import os
 import subprocess
 from typing import Optional
+from config import FFMPEG_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +27,11 @@ def extract_aac_audio(input_video_path: str) -> Optional[str]:
     # -vn: 禁用视频录制，只处理音频
     # -acodec copy: 直接复制音频流，不进行重新编码，速度最快且无损
     command = [
-        'D:\\Tools\\ffmpeg-master-latest-win64-gpl\\bin\\ffmpeg',
+        FFMPEG_PATH,
         '-i', input_video_path,
         '-vn',
         '-acodec', 'copy',
+        '-y',  # 覆盖已存在的文件
         output_audio_path
     ]
 

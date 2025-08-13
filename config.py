@@ -13,8 +13,14 @@ SERVERCHAN_SEND_KEY = os.getenv("SERVERCHAN_SEND_KEY")
 TENCENTCLOUD_SECRET_ID = os.getenv("TENCENTCLOUD_SECRET_ID")
 TENCENTCLOUD_SECRET_KEY = os.getenv("TENCENTCLOUD_SECRET_KEY")
 
-TENCENTCLOUD_COS_BUCKET = os.getenv("TENCENTCLOUD_COS_BUCKET")
-TENCENTCLOUD_COS_REGION = os.getenv("TENCENTCLOUD_COS_REGION")
+# 视频文件存储目录
+# 在容器内，这通常是数据卷映射的目标路径
+VIDEO_DIRECTORY = os.getenv("VIDEO_DIRECTORY", "videos")
+
+# FFMPEG 可执行文件路径
+# 在 Docker 中，ffmpeg 通常在系统 PATH 中，所以默认为 'ffmpeg'
+# 在 Windows 本地开发时，可以设置环境变量 FFMPEG_PATH 指向具体的 .exe 文件
+FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
 
 # 检查 SendKey 是否已配置
 if not SERVERCHAN_SEND_KEY:

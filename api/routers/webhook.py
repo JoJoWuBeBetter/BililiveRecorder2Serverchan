@@ -1,12 +1,14 @@
 import logging
+import os
 import uuid
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.orm import Session
-from models.webhook import WebhookPayload
-from services import webhook_processor, serverchan  # 注意这里的导入路径
+from models.webhook import WebhookPayload, BililiveEventType
+from services import webhook_processor, serverchan, ffmpeg_service
 from database import SessionLocal
 from crud.webhook_event_crud import create_webhook_event
 from schemas.webhook_event import WebhookEventCreate
+from config import VIDEO_DIRECTORY
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +88,17 @@ async def receive_webhook(payload: WebhookPayload, db: Session = Depends(get_db)
             )
             create_webhook_event(db, event_create)
             logger.info(f"Webhook event saved. EventId={_event_id}")
+
+            # 如果是文件关闭事件，则尝试提取音频
+            if payload.EventType == BililiveEventType.FILE_CLOSED and event_data.get("RelativePath"):
+                video_path = os.path.join(VIDEO_DIRECTORY, event_data["RelativePath"])
+                logger.info(f"FileClosed event: Starting audio extraction for {video_path}")
+                extracted_audio_path = ffmpeg_service.extract_aac_audio(video_path)
+                if extracted_audio_path:
+                    logger.info(f"Audio extraction successful for {video_path}. Output: {extracted_audio_path}")
+                else:
+                    logger.error(f"Audio extraction failed for {video_path}")
+
         except Exception as e:
             logger.exception(f"Failed to persist webhook event EventId={payload.EventId}: {e}")
 
