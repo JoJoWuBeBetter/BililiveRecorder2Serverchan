@@ -12,7 +12,7 @@ print("Database tables creation process finished.")
 app = FastAPI(
     title="录播姬 Webhook 转 ServerChan",
     description="接收录播姬 Webhook 请求，并将其内容格式化后转发至 ServerChan。",
-    version="1.2.1"
+    version="2.2.4"
 )
 
 # 包含 Webhook 路由
