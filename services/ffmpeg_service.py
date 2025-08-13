@@ -15,7 +15,7 @@ def extract_aac_audio(input_video_path: str) -> Optional[str]:
     :return: 如果成功，返回提取出的 AAC 文件的路径；如果失败，则返回 None。
     """
     if not os.path.exists(input_video_path):
-        logger.error(f"Input video file not found: {input_video_path}")
+        logger.error("Input video file not found: {input_video_path}")
         return None
 
     # 构建输出文件名，将 .flv/.mp4 等后缀替换为 .aac
@@ -34,7 +34,7 @@ def extract_aac_audio(input_video_path: str) -> Optional[str]:
     ]
 
     try:
-        logger.info(f"Executing ffmpeg command: {' '.join(command)}")
+        logger.info("Executing ffmpeg command: {' '.join(command)}")
         result = subprocess.run(
             command,
             check=True,
@@ -42,21 +42,21 @@ def extract_aac_audio(input_video_path: str) -> Optional[str]:
             text=True,
             encoding='utf-8'
         )
-        logger.info(f"Successfully extracted audio to {output_audio_path}")
+        logger.info("Successfully extracted audio to {output_audio_path}")
         if result.stderr:
             # ffmpeg 经常将正常信息输出到 stderr，所以这里用 info 级别记录
-            logger.info(f"ffmpeg output:{result.stderr}")
+            logger.info("ffmpeg output:{result.stderr}")
         return output_audio_path
     except FileNotFoundError:
         logger.error("ffmpeg command not found. Is ffmpeg installed and in the system's PATH?")
         return None
     except subprocess.CalledProcessError as e:
-        logger.error(f"ffmpeg command failed with exit code {e.returncode} for file {input_video_path}")
-        logger.error(f"ffmpeg stderr:{e.stderr}")
+        logger.error("ffmpeg command failed with exit code {e.returncode} for file {input_video_path}")
+        logger.error("ffmpeg stderr:{e.stderr}")
         # 如果失败，清理可能已创建的空文件
         if os.path.exists(output_audio_path):
             os.remove(output_audio_path)
         return None
     except Exception as e:
-        logger.exception(f"An unexpected error occurred while extracting audio from {input_video_path}: {e}")
+        logger.exception("An unexpected error occurred while extracting audio from {input_video_path}: {e}")
         return None
