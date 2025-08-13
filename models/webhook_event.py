@@ -53,5 +53,9 @@ class WebhookEvent(Base):
     serverchan_title = Column(Text, nullable=True)
     serverchan_description = Column(Text, nullable=True)
 
+    # 音频提取状态
+    audio_extraction_status = Column(String, nullable=True, index=True)  # pending, success, failure
+    extracted_audio_path = Column(String, nullable=True)
+
     def __repr__(self):
         return f"<WebhookEvent(event_type={self.event_type}, event_id={self.event_id}, room_id={self.room_id})>"

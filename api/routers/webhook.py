@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from models.webhook import WebhookPayload, BililiveEventType
 from services import webhook_processor, serverchan, ffmpeg_service
 from database import SessionLocal
-from crud.webhook_event_crud import create_webhook_event
-from schemas.webhook_event import WebhookEventCreate
+from crud.webhook_event_crud import create_webhook_event, update_webhook_event
+from schemas.webhook_event import WebhookEventCreate, WebhookEventUpdate
 from config import VIDEO_DIRECTORY
 
 logger = logging.getLogger(__name__)
@@ -85,6 +85,7 @@ async def receive_webhook(payload: WebhookPayload, db: Session = Depends(get_db)
                 serverchan_response=serverchan_response,
                 serverchan_title=message_details.get("serverchan_title"),
                 serverchan_description=message_details.get("desp"),
+                audio_extraction_status=("pending" if payload.EventType == BililiveEventType.FILE_CLOSED else None),
             )
             create_webhook_event(db, event_create)
             logger.info(f"Webhook event saved. EventId={_event_id}")
@@ -94,10 +95,17 @@ async def receive_webhook(payload: WebhookPayload, db: Session = Depends(get_db)
                 video_path = os.path.join(VIDEO_DIRECTORY, event_data["RelativePath"])
                 logger.info(f"FileClosed event: Starting audio extraction for {video_path}")
                 extracted_audio_path = ffmpeg_service.extract_aac_audio(video_path)
+
+                update_data = WebhookEventUpdate()
                 if extracted_audio_path:
                     logger.info(f"Audio extraction successful for {video_path}. Output: {extracted_audio_path}")
+                    update_data.audio_extraction_status = "success"
+                    update_data.extracted_audio_path = extracted_audio_path
                 else:
                     logger.error(f"Audio extraction failed for {video_path}")
+                    update_data.audio_extraction_status = "failure"
+                
+                update_webhook_event(db, _event_id, update_data)
 
         except Exception as e:
             logger.exception(f"Failed to persist webhook event EventId={payload.EventId}: {e}")

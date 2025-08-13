@@ -31,6 +31,8 @@ class WebhookEventCreate(BaseModel):
     serverchan_response: Optional[Dict[str, Any]] = None
     serverchan_title: Optional[str] = None
     serverchan_description: Optional[str] = None
+    audio_extraction_status: Optional[str] = None
+    extracted_audio_path: Optional[str] = None
 
 
 class WebhookEvent(BaseModel):
@@ -59,6 +61,8 @@ class WebhookEvent(BaseModel):
     serverchan_response: Optional[Dict[str, Any]] = None
     serverchan_title: Optional[str] = None
     serverchan_description: Optional[str] = None
+    audio_extraction_status: Optional[str] = None
+    extracted_audio_path: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -68,3 +72,5 @@ class WebhookEventUpdate(BaseModel):
     """更新 Webhook 事件的请求模型"""
     serverchan_sent: Optional[str] = None
     serverchan_response: Optional[Dict[str, Any]] = None
+    audio_extraction_status: Optional[str] = None
+    extracted_audio_path: Optional[str] = None
