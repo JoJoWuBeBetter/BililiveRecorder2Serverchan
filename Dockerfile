@@ -1,5 +1,5 @@
 # Use a slim Python image for smaller size and faster builds
-FROM python:3.9-slim-buster
+FROM docker.1ms.run/python:3.9-slim-bullseye
 
 # Set environment variables for the container
 ENV SERVERCHAN_SEND_KEY=""
@@ -13,6 +13,12 @@ ENV GUNICORN_BIND_ADDRESS="0.0.0.0:8000"
 
 # Set the working directory inside the container
 WORKDIR /app
+
+# Update package list and install ffmpeg
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg ca-certificates && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy requirements.txt first to leverage Docker layer caching
 COPY requirements.txt .
