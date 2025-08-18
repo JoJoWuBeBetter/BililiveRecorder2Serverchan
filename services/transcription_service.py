@@ -1,4 +1,5 @@
 # services/transcription_service.py
+import asyncio
 import os
 import uuid
 
@@ -9,6 +10,14 @@ from crud import task_crud
 from models.task import TaskStatus
 from services.tencent_cloud_asr import TencentCloudASRService
 from services.tencent_cloud_cos import TencentCosService
+
+
+async def run_batch_transcription_pipeline(db: Session, task_ids: list[uuid.UUID], asr_params: dict):
+    """
+    Concurrently runs the transcription pipeline for a batch of tasks.
+    """
+    tasks = [run_transcription_pipeline(db, task_id, asr_params) for task_id in task_ids]
+    await asyncio.gather(*tasks)
 
 
 async def run_transcription_pipeline(db: Session, task_id: uuid.UUID, asr_params: dict):
@@ -25,7 +34,7 @@ async def run_transcription_pipeline(db: Session, task_id: uuid.UUID, asr_params
         cos_service = TencentCosService()
         cos_key = f"{os.path.basename(task.original_audio_path)}"
 
-        success = cos_service.upload_file(local_file_path=task.original_audio_path, key=cos_key)
+        success = await cos_service.upload_file_async(local_file_path=task.original_audio_path, key=cos_key)
         if not success:
             raise RuntimeError(f"Failed to upload {task.original_audio_path} to COS.")
 

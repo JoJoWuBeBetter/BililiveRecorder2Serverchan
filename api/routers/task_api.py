@@ -85,6 +85,7 @@ async def create_batch_transcription_task(
         )
 
     created_tasks = []
+    task_ids = []
     asr_params = {
         "engine_model_type": batch_request.engine_model_type,
         "channel_num": batch_request.channel_num,
@@ -120,15 +121,14 @@ async def create_batch_transcription_task(
         # b. 在数据库中创建任务记录
         db_task = create_task(db=db, task_data=single_task_data)
 
-        # c. 将耗时任务添加到后台执行
-        background_tasks.add_task(transcription_service.run_transcription_pipeline, db, db_task.id, asr_params)
-
         created_tasks.append(db_task)
+        task_ids.append(db_task.id)
 
     if not created_tasks:
         logger.warning(
             f"No matching files found in {batch_request.directory_path} with extension '{batch_request.file_extension}'")
     else:
+        background_tasks.add_task(transcription_service.run_batch_transcription_pipeline, db, task_ids, asr_params)
         logger.info(f"Scheduled {len(created_tasks)} tasks from directory {batch_request.directory_path}.")
 
     # --- 4. 立即返回所有已创建任务的初始信息 ---

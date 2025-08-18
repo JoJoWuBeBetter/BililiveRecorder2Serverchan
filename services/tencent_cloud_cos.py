@@ -1,5 +1,6 @@
 # -*- coding=utf--8
 
+import asyncio
 import os
 from qcloud_cos import CosConfig, CosS3Client, CosClientError, CosServiceError
 # 假设您的 config.py 文件与此文件在同一目录或在 Python 路径中
@@ -92,6 +93,12 @@ class TencentCosService:
                     return False
 
         return False  # 循环结束仍未成功
+
+    async def upload_file_async(self, local_file_path: str, key: str = None, retries: int = 3) -> bool:
+        """
+        Asynchronously uploads a local file to COS using a thread pool.
+        """
+        return await asyncio.to_thread(self.upload_file, local_file_path, key, retries)
 
     def get_presigned_download_url(self, key: str, expiration_seconds: int = 3600) -> str or None:
         """
