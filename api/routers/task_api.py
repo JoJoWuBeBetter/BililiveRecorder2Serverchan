@@ -52,6 +52,8 @@ async def create_transcription_task(
         "channel_num": task_request.channel_num,
         "res_text_format": task_request.res_text_format,
     }
+    if task_request.HotwordId:
+        asr_params["HotwordId"] = task_request.HotwordId
     background_tasks.add_task(transcription_service.run_transcription_pipeline, db, db_task.id, asr_params)
 
     logger.info(f"Task {db_task.id} created and scheduled for background processing.")
@@ -91,6 +93,8 @@ async def create_batch_transcription_task(
         "channel_num": batch_request.channel_num,
         "res_text_format": batch_request.res_text_format,
     }
+    if batch_request.HotwordId:
+        asr_params["HotwordId"] = batch_request.HotwordId
 
     batch_id = uuid.uuid4()
 
@@ -110,13 +114,17 @@ async def create_batch_transcription_task(
 
         # --- 3. 为每个文件创建任务 ---
         # a. 构造单个任务的请求数据
-        single_task_data = TaskCreate(
-            local_audio_path=full_path,
-            engine_model_type=batch_request.engine_model_type,
-            channel_num=batch_request.channel_num,
-            res_text_format=batch_request.res_text_format,
-            batch_id=batch_id
-        )
+        task_data_dict = {
+            "local_audio_path": full_path,
+            "engine_model_type": batch_request.engine_model_type,
+            "channel_num": batch_request.channel_num,
+            "res_text_format": batch_request.res_text_format,
+            "batch_id": batch_id
+        }
+        if batch_request.HotwordId:
+            task_data_dict["HotwordId"] = batch_request.HotwordId
+
+        single_task_data = TaskCreate(**task_data_dict)
 
         # b. 在数据库中创建任务记录
         db_task = create_task(db=db, task_data=single_task_data)
