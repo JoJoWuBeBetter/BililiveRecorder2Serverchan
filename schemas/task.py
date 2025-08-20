@@ -14,7 +14,7 @@ class TaskCreate(BaseModel):
     channel_num: int = 1
     res_text_format: int = 0
     batch_id: Optional[uuid.UUID] = None
-    HotwordId: Optional[str] = None
+    hotword_id: Optional[str] = None
 
 
 class Task(BaseModel):
@@ -43,4 +43,4 @@ class BatchTaskCreate(BaseModel):
     engine_model_type: str = Field("16k_zh_large", description="ASR 引擎类型。")
     channel_num: int = Field(1, description="音频通道数。")
     res_text_format: int = Field(0, description="转写结果的格式。")
-    HotwordId: Optional[str] = Field(None, description="热词表ID。")
+    hotword_id: Optional[str] = Field(None, description="热词表ID。")

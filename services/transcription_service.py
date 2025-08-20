@@ -59,7 +59,8 @@ async def run_transcription_pipeline(db: Session, task_id: uuid.UUID, asr_params
             channel_num=asr_params['channel_num'],
             res_text_format=asr_params['res_text_format'],
             source_type=0,  # 0 表示使用 URL
-            url=presigned_url
+            url=presigned_url,
+            hotword_id=asr_params.get('hotword_id')
         )
         asr_task_id = asr_response.Data.TaskId
         logger.info(f"[Task {task_id}] ASR task created with ID: {asr_task_id}")

@@ -64,7 +64,8 @@ class TencentCloudASRService:
             source_type: int,
             url: Optional[str] = None,
             data: Optional[str] = None,  # Base64 编码的音频数据
-            data_len: Optional[int] = None
+            data_len: Optional[int] = None,
+            hotword_id: Optional[str] = None
             # ... 可以添加更多你可能需要的参数
     ) -> CreateRecTaskResponse:
         """
@@ -80,6 +81,9 @@ class TencentCloudASRService:
             req.ChannelNum = channel_num
             req.ResTextFormat = res_text_format
             req.SourceType = source_type
+
+            if hotword_id:
+                req.HotwordId = hotword_id
 
             if req.SourceType == 0:
                 req.Url = url
