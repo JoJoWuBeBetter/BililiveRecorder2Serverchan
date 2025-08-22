@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件浏览器</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f7f9;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            width: 95%;
+            max-width: 1280px;
+            margin: 20px auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1a73e8;
+            text-align: center;
+            margin-top: 60px; /* Add margin to avoid overlap */
+        }
+        .actions-container {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            display: flex;
+            gap: 10px;
+        }
+        .actions-container button, .actions-container select {
+            padding: 10px 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            background-color: #f8f9fa;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .actions-container button:hover {
+            background-color: #e9ecef;
+        }
+        #back-button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            font-size: 14px;
+            display: none; /* Initially hidden */
+        }
+        #back-button:hover {
+            background-color: #155ab6;
+        }
+        .button-group {
+            margin-bottom: 20px;
+        }
+        .action-button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+        .action-button:hover {
+            background-color: #218838;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 10% auto;
+            padding: 30px;
+            border: none;
+            width: 90%;
+            max-width: 550px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            text-align: left;
+        }
+        .modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 25px;
+            font-size: 24px;
+            color: #333;
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #555;
+        }
+        .form-group input,
+        .form-group select {
+            width: calc(100% - 20px);
+            padding: 12px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: #f9f9f9;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #1a73e8;
+            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+        }
+        #transcription-form button[type="submit"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            background-color: #1a73e8;
+        }
+        #transcription-form button[type="submit"]:hover {
+            background-color: #155ab6;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border-bottom: 1px solid #ddd;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: 500;
+        }
+        th[data-sort] {
+            cursor: pointer;
+        }
+        th[data-sort].asc::after {
+            content: ' ▲';
+        }
+        th[data-sort].desc::after {
+            content: ' ▼';
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        tr.selected {
+            background-color: #cce5ff;
+        }
+        a {
+            color: #1a73e8;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .file-checkbox {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>文件浏览器</h1>
+        <div class="button-group">
+            <button id="back-button">返回</button>
+            <button id="transcribe-file-button" class="action-button">转录文件</button>
+            <button id="batch-transcribe-folder-button" class="action-button">批量转录文件夹</button>
+        </div>
+        <table id="file-list">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="select-all"></th>
+                    <th data-sort="type">类型</th>
+                    <th data-sort="name">名称</th>
+                    <th data-sort="ext">扩展名</th>
+                    <th data-sort="last_modified">最后修改时间</th>
+                    <th data-sort="size">大小</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- The Modal -->
+    <div id="transcription-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button">&times;</span>
+            <h2 id="modal-title">转录</h2>
+            <form id="transcription-form">
+                <div id="file-path-group" class="form-group">
+                    <label for="file-path">文件路径:</label>
+                    <input type="text" id="file-path" name="file_path" readonly>
+                </div>
+                <div id="single-file-options">
+                    <div class="form-group">
+                        <label for="engine-model-type">引擎模型类型:</label>
+                        <input type="text" id="engine-model-type" name="engine_model_type" value="16k_zh_large">
+                    </div>
+                    <div class="form-group">
+                        <label for="channel-num">音频通道数:</label>
+                        <input type="number" id="channel-num" name="channel_num" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="res-text-format">转写结果格式:</label>
+                        <input type="number" id="res-text-format" name="res_text_format" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="hotword-id">热词表ID:</label>
+                        <input type="text" id="hotword-id" name="hotword_id">
+                    </div>
+                </div>
+                <div id="batch-file-options" style="display: none;">
+                    <div class="form-group">
+                        <label for="batch-engine-model-type">引擎模型类型:</label>
+                        <input type="text" id="batch-engine-model-type" name="batch_engine_model_type" value="16k_zh_large">
+                    </div>
+                    <div class="form-group">
+                        <label for="batch-channel-num">音频通道数:</label>
+                        <input type="number" id="batch-channel-num" name="batch_channel_num" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="batch-res-text-format">转写结果格式:</label>
+                        <input type="number" id="batch-res-text-format" name="batch_res_text_format" value="0">
+                    </div>
+                    <div class="form-group">
+                        <label for="batch-hotword-id">热词表ID:</label>
+                        <input type="text" id="batch-hotword-id" name="batch_hotword_id">
+                    </div>
+                </div>
+                <div id="folder-path-group" class="form-group" style="display: none;">
+                    <label for="folder-path">文件夹路径:</label>
+                    <input type="text" id="folder-path" name="folder_path" readonly>
+                </div>
+                <div id="file-extension-group" class="form-group" style="display: none;">
+                    <label for="file-extension">文件扩展名:</label>
+                    <select id="file-extension" name="file_extension">
+                        <option value="flac">flac</option>
+                        <option value="mp3">mp3</option>
+                        <option value="mp4">mp4</option>
+                        <option value="m4a">m4a</option>
+                        <option value="wav">wav</option>
+                        <option value="aac">aac</option>
+                    </select>
+                </div>
+                <button type="submit" class="action-button">开始转录</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const fileList = document.getElementById("file-list").getElementsByTagName('tbody')[0];
+            const selectAll = document.getElementById("select-all");
+            const backButton = document.getElementById("back-button");
+            const tableHeaders = document.querySelectorAll("th[data-sort]");
+            const transcribeFileButton = document.getElementById("transcribe-file-button");
+            const batchTranscribeFolderButton = document.getElementById("batch-transcribe-folder-button");
+            const modal = document.getElementById("transcription-modal");
+            const modalTitle = document.getElementById("modal-title");
+            const form = document.getElementById("transcription-form");
+            const filePathInput = document.getElementById("file-path");
+            const folderPathInput = document.getElementById("folder-path");
+            const fileExtensionGroup = document.getElementById("file-extension-group");
+            const fileExtensionSelect = document.getElementById("file-extension");
+            const closeButton = document.querySelector(".close-button");
+
+            let currentPath = '';
+            let sortColumn = null;
+            let sortDirection = 'asc';
+            let selectedRow = null;
+            let selectedItem = null;
+
+            function loadFiles(path) {
+                fetch(`/files/?path=${encodeURIComponent(path) || ''}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (sortColumn) {
+                            data.sort((a, b) => {
+                                let aValue, bValue;
+
+                                switch (sortColumn) {
+                                    case 'name':
+                                        aValue = a.name;
+                                        bValue = b.name;
+                                        break;
+                                    case 'ext':
+                                        aValue = a.is_directory ? '' : a.name.split('.').pop();
+                                        bValue = b.is_directory ? '' : b.name.split('.').pop();
+                                        break;
+                                    case 'last_modified':
+                                        aValue = new Date(a.last_modified);
+                                        bValue = new Date(b.last_modified);
+                                        break;
+                                    case 'size':
+                                        aValue = a.size;
+                                        bValue = b.size;
+                                        break;
+                                    case 'type':
+                                        aValue = a.is_directory ? 'directory' : 'file';
+                                        bValue = b.is_directory ? 'directory' : 'file';
+                                        break;
+                                    default:
+                                        return 0;
+                                }
+
+                                if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+                                if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+                                return 0;
+                            });
+                        } else {
+                            data.sort((a, b) => {
+                                if (a.is_directory !== b.is_directory) {
+                                    return a.is_directory ? -1 : 1;
+                                }
+                                return a.name.localeCompare(b.name);
+                            });
+                        }
+
+                        fileList.innerHTML = '';
+                        data.forEach(file => {
+                            const row = fileList.insertRow();
+                            const extension = file.is_directory ? '-' : file.name.split('.').pop();
+                            row.innerHTML = `
+                                <td><input type="checkbox" class="file-checkbox"></td>
+                                <td>${file.is_directory ? '📁' : '📄'}</td>
+                                <td><a href="#" data-path="${file.path}" data-is-directory="${file.is_directory}">${file.name}</a></td>
+                                <td>${extension}</td>
+                                <td>${new Date(file.last_modified).toLocaleString()}</td>
+                                <td>${file.is_directory ? '-' : formatSize(file.size)}</td>
+                            `;
+                        });
+                        currentPath = path;
+                        backButton.style.display = path ? 'inline-block' : 'none';
+                        selectedRow = null;
+                        selectedItem = null;
+                    });
+            }
+
+            function formatSize(bytes) {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+
+            fileList.addEventListener("click", function(e) {
+                const row = e.target.closest('tr');
+                if (!row) return;
+
+                const link = row.querySelector('a[data-path]');
+                if (!link) return;
+
+                const path = link.dataset.path;
+                const isDirectory = link.dataset.isDirectory === 'true';
+
+                if (e.target.tagName === 'A') {
+                    e.preventDefault();
+                    if (isDirectory) {
+                        loadFiles(path);
+                    }
+                } else {
+                    if (selectedRow) {
+                        selectedRow.classList.remove('selected');
+                    }
+                    selectedRow = row;
+                    selectedRow.classList.add('selected');
+                    selectedItem = { path, isDirectory, name: link.textContent };
+                }
+            });
+
+            backButton.addEventListener("click", function() {
+                const parentPath = currentPath.substring(0, currentPath.lastIndexOf('\\'));
+                loadFiles(parentPath);
+            });
+
+            selectAll.addEventListener("change", function() {
+                const checkboxes = document.querySelectorAll(".file-checkbox");
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = selectAll.checked;
+                });
+            });
+
+            tableHeaders.forEach(header => {
+                header.addEventListener("click", function() {
+                    const newSortColumn = header.dataset.sort;
+                    if (sortColumn === newSortColumn) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortColumn = newSortColumn;
+                        sortDirection = 'asc';
+                    }
+                    tableHeaders.forEach(h => h.classList.remove('asc', 'desc'));
+                    header.classList.add(sortDirection);
+                    loadFiles(currentPath);
+                });
+            });
+
+            transcribeFileButton.addEventListener("click", function() {
+                if (!selectedItem || selectedItem.isDirectory) {
+                    alert("请选择要转录的文件。");
+                    return;
+                }
+                modalTitle.textContent = "转录文件";
+                document.getElementById('file-path-group').style.display = 'block';
+                document.getElementById('single-file-options').style.display = 'block';
+                document.getElementById('folder-path-group').style.display = 'none';
+                document.getElementById('batch-file-options').style.display = 'none';
+                fileExtensionGroup.style.display = 'none';
+                filePathInput.value = selectedItem.path;
+                modal.style.display = "block";
+            });
+
+            batchTranscribeFolderButton.addEventListener("click", function() {
+                if (!selectedItem || !selectedItem.isDirectory) {
+                    alert("请选择要批量转录的文件夹。");
+                    return;
+                }
+                modalTitle.textContent = "批量转录文件夹";
+                document.getElementById('file-path-group').style.display = 'none';
+                document.getElementById('single-file-options').style.display = 'none';
+                document.getElementById('folder-path-group').style.display = 'block';
+                document.getElementById('batch-file-options').style.display = 'block';
+                fileExtensionGroup.style.display = 'block';
+                folderPathInput.value = selectedItem.path;
+                modal.style.display = "block";
+            });
+
+            closeButton.addEventListener("click", () => {
+                modal.style.display = "none";
+            });
+
+            window.addEventListener("click", (event) => {
+                if (event.target == modal) {
+                    modal.style.display = "none";
+                }
+            });
+
+            form.addEventListener("submit", function(e) {
+                e.preventDefault();
+                const isBatch = document.getElementById('folder-path-group').style.display === 'block';
+                const url = isBatch ? '/tasks/batch-audio-transcription' : '/tasks/audio-transcription';
+                let body;
+
+                if (isBatch) {
+                    body = {
+                        directory_path: folderPathInput.value,
+                        file_extension: fileExtensionSelect.value,
+                        engine_model_type: document.getElementById('batch-engine-model-type').value,
+                        channel_num: parseInt(document.getElementById('batch-channel-num').value, 10),
+                        res_text_format: parseInt(document.getElementById('batch-res-text-format').value, 10),
+                        hotword_id: document.getElementById('batch-hotword-id').value || null
+                    };
+                } else {
+                    body = {
+                        local_audio_path: filePathInput.value,
+                        engine_model_type: document.getElementById('engine-model-type').value,
+                        channel_num: parseInt(document.getElementById('channel-num').value, 10),
+                        res_text_format: parseInt(document.getElementById('res-text-format').value, 10),
+                        hotword_id: document.getElementById('hotword-id').value || null
+                    };
+                }
+
+                fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(err => {
+                            // Construct a detailed error message
+                            let errorMessage = `创建任务失败。服务器返回状态: ${response.status}.`;
+                            if (err.detail) {
+                                if (Array.isArray(err.detail)) {
+                                    const details = err.detail.map(d => {
+                                        const field = d.loc.join(' -> ');
+                                        return `${field}: ${d.msg}`;
+                                    }).join('; ');
+                                    errorMessage += ` 详情: ${details}`;
+                                } else {
+                                    errorMessage += ` 详情: ${err.detail}`;
+                                }
+                            }
+                            throw new Error(errorMessage);
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    let successMessage = '';
+                    if (isBatch) {
+                        if (data && data.length > 0) {
+                            successMessage = `成功创建 ${data.length} 个批量转录任务。`;
+                        } else {
+                            successMessage = "没有找到匹配的文件，未创建任务。";
+                        }
+                    } else {
+                        successMessage = `任务已创建，ID: ${data.id}`;
+                    }
+                    alert(successMessage);
+                    modal.style.display = "none";
+                })
+                .catch(error => {
+                    console.error('错误:', error);
+                    alert(error.message);
+                });
+            });
+
+            loadFiles('');
+        });
+    </script>
+</body>
+</html>

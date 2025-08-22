@@ -6,7 +6,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
-from config import logger
+from config import logger, VIDEO_DIRECTORY
 from crud.task_crud import create_task, get_task, get_tasks_by_batch_id
 from database import SessionLocal
 from models.task import BatchTranscriptionResults, TaskStatus
@@ -43,6 +43,13 @@ async def create_transcription_task(
     """
     logger.info(f"Received transcription request for: {task_request.local_audio_path}")
 
+    if not os.path.isabs(task_request.local_audio_path):
+        logger.warning(f"Received relative path: {task_request.local_audio_path}. Converting to absolute path.")
+        # 如果接收到的是相对路径，则会基于预设的 `VIDEO_DIRECTORY` 将其转换为绝对路径。
+        # 注意：`VIDEO_DIRECTORY` 必须在 `config.py` 中正确配置。
+        task_request.local_audio_path = os.path.join(VIDEO_DIRECTORY, task_request.local_audio_path)
+        logger.info(f"Converted to absolute path: {task_request.local_audio_path}")
+
     # 1. 在数据库中创建任务记录
     db_task = create_task(db=db, task_data=task_request)
 
@@ -77,6 +84,12 @@ async def create_batch_transcription_task(
     - **engine_model_type**: 应用于所有文件的 ASR 引擎类型。
     """
     logger.info(f"Received batch transcription request for directory: {batch_request.directory_path}")
+
+    # Convert relative path to absolute path if necessary
+    if not os.path.isabs(batch_request.directory_path):
+        logger.warning(f"Received relative path: {batch_request.directory_path}. Converting to absolute path.")
+        batch_request.directory_path = os.path.join(VIDEO_DIRECTORY, batch_request.directory_path)
+        logger.info(f"Converted to absolute path: {batch_request.directory_path}")
 
     # --- 1. 验证文件夹路径是否存在 ---
     if not os.path.isdir(batch_request.directory_path):

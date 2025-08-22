@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api.routers import webhook, cos_api, task_api  # 导入 webhook 路由器
+from api.routers import webhook, cos_api, task_api, file_browser_api  # 导入 webhook 路由器
 from config import logger  # 导入 config 中的 logger，确保日志配置一致
 from database import create_db_and_tables
 
@@ -19,6 +19,7 @@ app = FastAPI(
 app.include_router(webhook.router)
 app.include_router(cos_api.router)
 app.include_router(task_api.router)
+app.include_router(file_browser_api.router)
 
 
 @app.get("/")
