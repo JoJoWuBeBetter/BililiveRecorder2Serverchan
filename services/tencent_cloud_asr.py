@@ -146,7 +146,7 @@ class TencentCloudASRService:
             )
 
     @classmethod
-    async def poll_task_status(cls, task_id: int, timeout: int = 600, interval: int = 5) -> Dict[str, Any]:
+    async def poll_task_status(cls, task_id: int, timeout: int = 10800, interval: int = 5) -> Dict[str, Any]:
         """
         异步轮询 ASR 任务状态，直到完成或超时。
         返回包含任务最终状态和结果的字典。
