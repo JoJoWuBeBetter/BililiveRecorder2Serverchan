@@ -3,544 +3,850 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>文件浏览器</title>
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <title>文件管理控制台</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #4f46e5; /* Indigo */
+            --primary-hover: #4338ca;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-secondary: #6b7280;
+            --border-color: #e5e7eb;
+            --success-color: #10b981;
+            --danger-color: #ef4444;
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
         body {
-            font-family: 'Roboto', sans-serif;
-            background-color: #f4f7f9;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
             margin: 0;
             padding: 20px;
-            color: #333;
+            color: var(--text-main);
+            line-height: 1.5;
         }
+
         .container {
-            width: 95%;
-            max-width: 1280px;
-            margin: 20px auto;
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: var(--shadow-md);
         }
-        h1 {
-            color: #1a73e8;
-            text-align: center;
-            margin-top: 60px; /* Add margin to avoid overlap */
-        }
-        .actions-container {
-            position: absolute;
-            top: 40px;
-            right: 40px;
+
+        /* Header Area */
+        header {
             display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            color: var(--text-main);
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0;
+            display: flex;
+            align-items: center;
             gap: 10px;
         }
-        .actions-container button, .actions-container select {
-            padding: 10px 15px;
-            border-radius: 5px;
-            border: 1px solid #ddd;
-            background-color: #f8f9fa;
-            cursor: pointer;
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        /* Buttons */
+        button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            border: 1px solid transparent;
             font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
         }
-        .actions-container button:hover {
-            background-color: #e9ecef;
-        }
-        #back-button {
-            background-color: #1a73e8;
+
+        .btn-primary {
+            background-color: var(--primary-color);
             color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-bottom: 20px;
-            font-size: 14px;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: white;
+            border-color: var(--border-color);
+            color: var(--text-main);
+        }
+
+        .btn-secondary:hover {
+            background-color: #f9fafb;
+            border-color: #d1d5db;
+        }
+
+        #back-button {
             display: none; /* Initially hidden */
         }
-        #back-button:hover {
-            background-color: #155ab6;
+
+        /* Table Styling */
+        .table-container {
+            overflow-x: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
         }
-        .button-group {
-            margin-bottom: 20px;
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background: white;
         }
-        .action-button {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
+
+        th {
+            background-color: #f9fafb;
+            color: var(--text-secondary);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+            user-select: none;
+        }
+
+        th[data-sort] {
             cursor: pointer;
+        }
+
+        th[data-sort]:hover {
+            color: var(--text-main);
+            background-color: #f3f4f6;
+        }
+
+        th[data-sort].asc::after {
+            content: ' ↑';
+        }
+
+        th[data-sort].desc::after {
+            content: ' ↓';
+        }
+
+        td {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
             font-size: 14px;
-            margin-left: 10px;
+            vertical-align: middle;
         }
-        .action-button:hover {
-            background-color: #218838;
+
+        tr:last-child td {
+            border-bottom: none;
         }
+
+        tr {
+            transition: background-color 0.15s ease;
+        }
+
+        tr:hover {
+            background-color: #f9fafb;
+        }
+
+        tr.selected {
+            background-color: #eef2ff; /* Very light indigo */
+        }
+
+        tr.selected td {
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+
+        /* Links & Icons */
+        a {
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+
+        a:hover {
+            color: var(--primary-color);
+        }
+
+        .icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            fill: currentColor;
+        }
+
+        .icon-folder {
+            color: #f59e0b;
+        }
+
+        /* Amber for folders */
+        .icon-file {
+            color: #9ca3af;
+        }
+
+        /* Gray for files */
+        .icon-audio {
+            color: #ec4899;
+        }
+
+        /* Pink for audio */
+
+        /* Modal Styling */
         .modal {
             display: none;
             position: fixed;
-            z-index: 1;
+            z-index: 50;
             left: 0;
             top: 0;
             width: 100%;
             height: 100%;
             overflow: auto;
-            background-color: rgba(0,0,0,0.4);
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease-out;
         }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
         .modal-content {
-            background-color: #fefefe;
-            margin: 10% auto;
-            padding: 30px;
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 0;
             border: none;
             width: 90%;
-            max-width: 550px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
-            text-align: left;
+            max-width: 600px;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            animation: slideUp 0.3s ease-out;
+            position: relative;
         }
-        .modal-content h2 {
-            margin-top: 0;
-            margin-bottom: 25px;
-            font-size: 24px;
-            color: #333;
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
+
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: var(--text-main);
+        }
+
         .close-button {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-        }
-        .close-button:hover,
-        .close-button:focus {
-            color: black;
-            text-decoration: none;
+            color: var(--text-secondary);
+            font-size: 24px;
+            line-height: 1;
             cursor: pointer;
+            transition: color 0.2s;
+            background: none;
+            border: none;
+            padding: 0;
         }
+
+        .close-button:hover {
+            color: var(--danger-color);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        /* Form Styling */
         .form-group {
             margin-bottom: 20px;
         }
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
+            font-size: 14px;
             font-weight: 500;
-            color: #555;
+            color: var(--text-main);
         }
+
         .form-group input,
         .form-group select {
-            width: calc(100% - 20px);
-            padding: 12px 10px;
-            border: 1px solid #ddd;
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
             border-radius: 6px;
-            background-color: #f9f9f9;
-            transition: border-color 0.3s, box-shadow 0.3s;
+            font-size: 14px;
+            color: var(--text-main);
+            background-color: #fff;
+            transition: all 0.2s;
+            box-sizing: border-box; /* Fix width calculation */
         }
+
         .form-group input:focus,
         .form-group select:focus {
             outline: none;
-            border-color: #1a73e8;
-            box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
         }
-        #transcription-form button[type="submit"] {
-            width: 100%;
-            padding: 12px;
-            font-size: 16px;
-            background-color: #1a73e8;
+
+        .form-group input[readonly] {
+            background-color: #f9fafb;
+            color: var(--text-secondary);
         }
-        #transcription-form button[type="submit"]:hover {
-            background-color: #155ab6;
+
+        .modal-footer {
+            padding: 20px 24px;
+            background-color: #f9fafb;
+            border-top: 1px solid var(--border-color);
+            border-radius: 0 0 16px 16px;
+            text-align: right;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
+
+        .modal-footer button {
+            width: auto;
+            min-width: 120px;
+            justify-content: center;
         }
-        th, td {
-            border-bottom: 1px solid #ddd;
-            padding: 12px 15px;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
-            font-weight: 500;
-        }
-        th[data-sort] {
+
+        /* Checkbox Customization */
+        input[type="checkbox"] {
+            accent-color: var(--primary-color);
+            width: 16px;
+            height: 16px;
             cursor: pointer;
         }
-        th[data-sort].asc::after {
-            content: ' ▲';
-        }
-        th[data-sort].desc::after {
-            content: ' ▼';
-        }
-        tr:hover {
-            background-color: #f1f1f1;
-        }
-        tr.selected {
-            background-color: #cce5ff;
-        }
-        a {
-            color: #1a73e8;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        .file-checkbox {
-            cursor: pointer;
-        }
+
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>文件浏览器</h1>
+
+<svg style="display: none;">
+    <symbol id="icon-folder" viewBox="0 0 24 24">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+    </symbol>
+    <symbol id="icon-file" viewBox="0 0 24 24">
+        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+        <polyline points="13 2 13 9 20 9"></polyline>
+    </symbol>
+    <symbol id="icon-audio" viewBox="0 0 24 24">
+        <path d="M9 18V5l12-2v13"></path>
+        <circle cx="6" cy="18" r="3"></circle>
+        <circle cx="18" cy="16" r="3"></circle>
+    </symbol>
+    <symbol id="icon-arrow-left" viewBox="0 0 24 24">
+        <line x1="19" y1="12" x2="5" y2="12"></line>
+        <polyline points="12 19 5 12 12 5"></polyline>
+    </symbol>
+    <symbol id="icon-cpu" viewBox="0 0 24 24">
+        <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
+        <rect x="9" y="9" width="6" height="6"></rect>
+        <line x1="9" y1="1" x2="9" y2="4"></line>
+        <line x1="15" y1="1" x2="15" y2="4"></line>
+        <line x1="9" y1="20" x2="9" y2="23"></line>
+        <line x1="15" y1="20" x2="15" y2="23"></line>
+        <line x1="20" y1="9" x2="23" y2="9"></line>
+        <line x1="20" y1="14" x2="23" y2="14"></line>
+        <line x1="1" y1="9" x2="4" y2="9"></line>
+        <line x1="1" y1="14" x2="4" y2="14"></line>
+    </symbol>
+    <symbol id="icon-layers" viewBox="0 0 24 24">
+        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+        <polyline points="2 17 12 22 22 17"></polyline>
+        <polyline points="2 12 12 17 22 12"></polyline>
+    </symbol>
+</svg>
+
+<div class="container">
+    <header>
+        <h1>
+            <svg class="icon" style="color: var(--primary-color); width: 28px; height: 28px;">
+                <use href="#icon-layers"></use>
+            </svg>
+            文件浏览器
+        </h1>
         <div class="button-group">
-            <button id="back-button">返回</button>
-            <button id="transcribe-file-button" class="action-button">转录文件</button>
-            <button id="batch-transcribe-folder-button" class="action-button">批量转录文件夹</button>
+            <button id="back-button" class="btn-secondary">
+                <svg class="icon" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"
+                     stroke-linejoin="round">
+                    <use href="#icon-arrow-left"></use>
+                </svg>
+                返回上级
+            </button>
+            <button id="transcribe-file-button" class="btn-primary">
+                <svg class="icon" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"
+                     stroke-linejoin="round">
+                    <use href="#icon-cpu"></use>
+                </svg>
+                转录文件
+            </button>
+            <button id="batch-transcribe-folder-button" class="btn-primary">
+                <svg class="icon" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"
+                     stroke-linejoin="round">
+                    <use href="#icon-layers"></use>
+                </svg>
+                批量转录文件夹
+            </button>
         </div>
+    </header>
+
+    <div class="table-container">
         <table id="file-list">
             <thead>
-                <tr>
-                    <th><input type="checkbox" id="select-all"></th>
-                    <th data-sort="type">类型</th>
-                    <th data-sort="name">名称</th>
-                    <th data-sort="ext">扩展名</th>
-                    <th data-sort="last_modified">最后修改时间</th>
-                    <th data-sort="size">大小</th>
-                </tr>
+            <tr>
+                <th style="width: 40px; text-align: center;"><input type="checkbox" id="select-all"></th>
+                <th style="width: 60px;" data-sort="type">类型</th>
+                <th data-sort="name">名称</th>
+                <th style="width: 100px;" data-sort="ext">扩展名</th>
+                <th style="width: 180px;" data-sort="last_modified">修改时间</th>
+                <th style="width: 100px;" data-sort="size">大小</th>
+            </tr>
             </thead>
             <tbody>
             </tbody>
         </table>
     </div>
+</div>
 
-    <!-- The Modal -->
-    <div id="transcription-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button">&times;</span>
-            <h2 id="modal-title">转录</h2>
-            <form id="transcription-form">
+<div id="transcription-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modal-title">转录任务配置</h2>
+            <button class="close-button">&times;</button>
+        </div>
+
+        <form id="transcription-form">
+            <div class="modal-body">
                 <div id="file-path-group" class="form-group">
-                    <label for="file-path">文件路径:</label>
+                    <label for="file-path">选定文件路径</label>
                     <input type="text" id="file-path" name="file_path" readonly>
                 </div>
+                <div id="folder-path-group" class="form-group" style="display: none;">
+                    <label for="folder-path">选定文件夹路径</label>
+                    <input type="text" id="folder-path" name="folder_path" readonly>
+                </div>
+
                 <div id="single-file-options">
                     <div class="form-group">
-                        <label for="engine-model-type">引擎模型类型:</label>
+                        <label for="engine-model-type">引擎模型 (Model Type)</label>
                         <input type="text" id="engine-model-type" name="engine_model_type" value="16k_zh_large">
                     </div>
-                    <div class="form-group">
-                        <label for="channel-num">音频通道数:</label>
-                        <input type="number" id="channel-num" name="channel_num" value="1">
+                    <div style="display: flex; gap: 20px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="channel-num">音频通道数</label>
+                            <input type="number" id="channel-num" name="channel_num" value="1">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="res-text-format">结果格式</label>
+                            <input type="number" id="res-text-format" name="res_text_format" value="0">
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label for="res-text-format">转写结果格式:</label>
-                        <input type="number" id="res-text-format" name="res_text_format" value="0">
-                    </div>
-                    <div class="form-group">
-                        <label for="hotword-id">热词表ID:</label>
-                        <input type="text" id="hotword-id" name="hotword_id">
+                        <label for="hotword-id">热词表 ID (可选)</label>
+                        <input type="text" id="hotword-id" name="hotword_id" placeholder="例如: hotword_123">
                     </div>
                 </div>
+
                 <div id="batch-file-options" style="display: none;">
-                    <div class="form-group">
-                        <label for="batch-engine-model-type">引擎模型类型:</label>
-                        <input type="text" id="batch-engine-model-type" name="batch_engine_model_type" value="16k_zh_large">
+                    <div id="file-extension-group" class="form-group">
+                        <label for="file-extension">目标文件扩展名</label>
+                        <select id="file-extension" name="file_extension">
+                            <option value="flac">.flac (无损音频)</option>
+                            <option value="mp3">.mp3</option>
+                            <option value="mp4">.mp4 (视频)</option>
+                            <option value="m4a">.m4a</option>
+                            <option value="wav">.wav</option>
+                            <option value="aac">.aac</option>
+                        </select>
                     </div>
                     <div class="form-group">
-                        <label for="batch-channel-num">音频通道数:</label>
-                        <input type="number" id="batch-channel-num" name="batch_channel_num" value="1">
+                        <label for="batch-engine-model-type">引擎模型 (Model Type)</label>
+                        <input type="text" id="batch-engine-model-type" name="batch_engine_model_type"
+                               value="16k_zh_large">
+                    </div>
+                    <div style="display: flex; gap: 20px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="batch-channel-num">音频通道数</label>
+                            <input type="number" id="batch-channel-num" name="batch_channel_num" value="1">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="batch-res-text-format">结果格式</label>
+                            <input type="number" id="batch-res-text-format" name="batch_res_text_format" value="0">
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label for="batch-res-text-format">转写结果格式:</label>
-                        <input type="number" id="batch-res-text-format" name="batch_res_text_format" value="0">
-                    </div>
-                    <div class="form-group">
-                        <label for="batch-hotword-id">热词表ID:</label>
+                        <label for="batch-hotword-id">热词表 ID (可选)</label>
                         <input type="text" id="batch-hotword-id" name="batch_hotword_id">
                     </div>
                 </div>
-                <div id="folder-path-group" class="form-group" style="display: none;">
-                    <label for="folder-path">文件夹路径:</label>
-                    <input type="text" id="folder-path" name="folder_path" readonly>
-                </div>
-                <div id="file-extension-group" class="form-group" style="display: none;">
-                    <label for="file-extension">文件扩展名:</label>
-                    <select id="file-extension" name="file_extension">
-                        <option value="flac">flac</option>
-                        <option value="mp3">mp3</option>
-                        <option value="mp4">mp4</option>
-                        <option value="m4a">m4a</option>
-                        <option value="wav">wav</option>
-                        <option value="aac">aac</option>
-                    </select>
-                </div>
-                <button type="submit" class="action-button">开始转录</button>
-            </form>
-        </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="submit" class="btn-primary">确认并开始</button>
+            </div>
+        </form>
     </div>
+</div>
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const fileList = document.getElementById("file-list").getElementsByTagName('tbody')[0];
-            const selectAll = document.getElementById("select-all");
-            const backButton = document.getElementById("back-button");
-            const tableHeaders = document.querySelectorAll("th[data-sort]");
-            const transcribeFileButton = document.getElementById("transcribe-file-button");
-            const batchTranscribeFolderButton = document.getElementById("batch-transcribe-folder-button");
-            const modal = document.getElementById("transcription-modal");
-            const modalTitle = document.getElementById("modal-title");
-            const form = document.getElementById("transcription-form");
-            const filePathInput = document.getElementById("file-path");
-            const folderPathInput = document.getElementById("folder-path");
-            const fileExtensionGroup = document.getElementById("file-extension-group");
-            const fileExtensionSelect = document.getElementById("file-extension");
-            const closeButton = document.querySelector(".close-button");
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const fileList = document.getElementById("file-list").getElementsByTagName('tbody')[0];
+        const selectAll = document.getElementById("select-all");
+        const backButton = document.getElementById("back-button");
+        const tableHeaders = document.querySelectorAll("th[data-sort]");
+        const transcribeFileButton = document.getElementById("transcribe-file-button");
+        const batchTranscribeFolderButton = document.getElementById("batch-transcribe-folder-button");
+        const modal = document.getElementById("transcription-modal");
+        const modalTitle = document.getElementById("modal-title");
+        const form = document.getElementById("transcription-form");
+        const filePathInput = document.getElementById("file-path");
+        const folderPathInput = document.getElementById("folder-path");
+        const fileExtensionGroup = document.getElementById("file-extension-group");
+        const fileExtensionSelect = document.getElementById("file-extension");
+        const closeButton = document.querySelector(".close-button");
 
-            let currentPath = '';
-            let sortColumn = null;
-            let sortDirection = 'asc';
-            let selectedRow = null;
-            let selectedItem = null;
+        let currentPath = '';
+        let sortColumn = null;
+        let sortDirection = 'asc';
+        let selectedRow = null;
+        let selectedItem = null;
 
-            function loadFiles(path) {
-                fetch(`/files/?path=${encodeURIComponent(path) || ''}`)
+        // Helper to get SVG icons
+        function getIconHtml(isDirectory, filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const audioExts = ['mp3', 'wav', 'flac', 'aac', 'm4a', 'ogg'];
+
+            if (isDirectory) {
+                return `<svg class="icon icon-folder" fill="currentColor" stroke="none"><use href="#icon-folder"></use></svg>`;
+            } else if (audioExts.includes(ext)) {
+                return `<svg class="icon icon-audio" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-audio"></use></svg>`;
+            } else {
+                return `<svg class="icon icon-file" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><use href="#icon-file"></use></svg>`;
+            }
+        }
+
+        function loadFiles(path) {
+            // Mock data functionality for when server is not present (remove/comment out in production if needed,
+            // but kept existing logic structure for safety)
+            const fetchUrl = `/files/?path=${encodeURIComponent(path) || ''}`;
+
+            fetch(fetchUrl)
                     .then(response => response.json())
                     .then(data => {
-                        if (sortColumn) {
-                            data.sort((a, b) => {
-                                let aValue, bValue;
-
-                                switch (sortColumn) {
-                                    case 'name':
-                                        aValue = a.name;
-                                        bValue = b.name;
-                                        break;
-                                    case 'ext':
-                                        aValue = a.is_directory ? '' : a.name.split('.').pop();
-                                        bValue = b.is_directory ? '' : b.name.split('.').pop();
-                                        break;
-                                    case 'last_modified':
-                                        aValue = new Date(a.last_modified);
-                                        bValue = new Date(b.last_modified);
-                                        break;
-                                    case 'size':
-                                        aValue = a.size;
-                                        bValue = b.size;
-                                        break;
-                                    case 'type':
-                                        aValue = a.is_directory ? 'directory' : 'file';
-                                        bValue = b.is_directory ? 'directory' : 'file';
-                                        break;
-                                    default:
-                                        return 0;
-                                }
-
-                                if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
-                                if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
-                                return 0;
-                            });
-                        } else {
-                            data.sort((a, b) => {
-                                if (a.is_directory !== b.is_directory) {
-                                    return a.is_directory ? -1 : 1;
-                                }
-                                return a.name.localeCompare(b.name);
-                            });
-                        }
-
-                        fileList.innerHTML = '';
-                        data.forEach(file => {
-                            const row = fileList.insertRow();
-                            const extension = file.is_directory ? '-' : file.name.split('.').pop();
-                            row.innerHTML = `
-                                <td><input type="checkbox" class="file-checkbox"></td>
-                                <td>${file.is_directory ? '📁' : '📄'}</td>
-                                <td><a href="#" data-path="${file.path}" data-is-directory="${file.is_directory}">${file.name}</a></td>
-                                <td>${extension}</td>
-                                <td>${new Date(file.last_modified).toLocaleString()}</td>
-                                <td>${file.is_directory ? '-' : formatSize(file.size)}</td>
-                            `;
-                        });
-                        currentPath = path;
-                        backButton.style.display = path ? 'inline-block' : 'none';
-                        selectedRow = null;
-                        selectedItem = null;
+                        processFiles(data, path);
+                    })
+                    .catch(err => {
+                        console.error("Fetch error:", err);
+                        // For demonstration purposes, if fetch fails (static file viewing), we don't break.
+                        // In real app, you might want to show an error message.
                     });
-            }
+        }
 
-            function formatSize(bytes) {
-                if (bytes === 0) return '0 B';
-                const k = 1024;
-                const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-            }
+        function processFiles(data, path) {
+            if (sortColumn) {
+                data.sort((a, b) => {
+                    let aValue, bValue;
 
-            fileList.addEventListener("click", function(e) {
-                const row = e.target.closest('tr');
-                if (!row) return;
-
-                const link = row.querySelector('a[data-path]');
-                if (!link) return;
-
-                const path = link.dataset.path;
-                const isDirectory = link.dataset.isDirectory === 'true';
-
-                if (e.target.tagName === 'A') {
-                    e.preventDefault();
-                    if (isDirectory) {
-                        loadFiles(path);
+                    switch (sortColumn) {
+                        case 'name':
+                            aValue = a.name;
+                            bValue = b.name;
+                            break;
+                        case 'ext':
+                            aValue = a.is_directory ? '' : a.name.split('.').pop();
+                            bValue = b.is_directory ? '' : b.name.split('.').pop();
+                            break;
+                        case 'last_modified':
+                            aValue = new Date(a.last_modified);
+                            bValue = new Date(b.last_modified);
+                            break;
+                        case 'size':
+                            aValue = a.size;
+                            bValue = b.size;
+                            break;
+                        case 'type':
+                            aValue = a.is_directory ? 'directory' : 'file';
+                            bValue = b.is_directory ? 'directory' : 'file';
+                            break;
+                        default:
+                            return 0;
                     }
+
+                    if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+                    if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
+            } else {
+                data.sort((a, b) => {
+                    if (a.is_directory !== b.is_directory) {
+                        return a.is_directory ? -1 : 1;
+                    }
+                    return a.name.localeCompare(b.name);
+                });
+            }
+
+            fileList.innerHTML = '';
+            data.forEach(file => {
+                const row = fileList.insertRow();
+                const extension = file.is_directory ? '-' : file.name.split('.').pop();
+                const iconHtml = getIconHtml(file.is_directory, file.name);
+
+                row.innerHTML = `
+                        <td style="text-align: center;"><input type="checkbox" class="file-checkbox"></td>
+                        <td style="text-align: center;">${iconHtml}</td>
+                        <td><a href="#" data-path="${file.path}" data-is-directory="${file.is_directory}">${file.name}</a></td>
+                        <td><span style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 12px; color: #666;">${extension}</span></td>
+                        <td>${new Date(file.last_modified).toLocaleString()}</td>
+                        <td>${file.is_directory ? '-' : formatSize(file.size)}</td>
+                    `;
+            });
+            currentPath = path;
+            backButton.style.display = path ? 'inline-flex' : 'none';
+            selectedRow = null;
+            selectedItem = null;
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        fileList.addEventListener("click", function (e) {
+            const row = e.target.closest('tr');
+            if (!row) return;
+
+            const link = row.querySelector('a[data-path]');
+            if (!link) return;
+
+            const path = link.dataset.path;
+            const isDirectory = link.dataset.isDirectory === 'true';
+
+            // Handle Link Click (Navigation)
+            if (e.target.closest('a')) {
+                e.preventDefault();
+                if (isDirectory) {
+                    loadFiles(path);
+                }
+                return;
+            }
+
+            // Handle Row Selection
+            if (e.target.type !== 'checkbox') {
+                // Clear previous selection
+                if (selectedRow) {
+                    selectedRow.classList.remove('selected');
+                    // Optional: uncheck previous if strict single select
+                }
+
+                // Toggle current
+                if (selectedRow === row) {
+                    selectedRow = null;
+                    selectedItem = null;
                 } else {
-                    if (selectedRow) {
-                        selectedRow.classList.remove('selected');
-                    }
                     selectedRow = row;
                     selectedRow.classList.add('selected');
-                    selectedItem = { path, isDirectory, name: link.textContent };
+                    selectedItem = {path, isDirectory, name: link.textContent};
+
+                    // Auto-check the checkbox for visual consistency
+                    const checkbox = row.querySelector('.file-checkbox');
+                    if (checkbox) checkbox.checked = true;
                 }
-            });
-
-            backButton.addEventListener("click", function() {
-                const parentPath = currentPath.substring(0, currentPath.lastIndexOf('\\'));
-                loadFiles(parentPath);
-            });
-
-            selectAll.addEventListener("change", function() {
-                const checkboxes = document.querySelectorAll(".file-checkbox");
-                checkboxes.forEach(checkbox => {
-                    checkbox.checked = selectAll.checked;
-                });
-            });
-
-            tableHeaders.forEach(header => {
-                header.addEventListener("click", function() {
-                    const newSortColumn = header.dataset.sort;
-                    if (sortColumn === newSortColumn) {
-                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-                    } else {
-                        sortColumn = newSortColumn;
-                        sortDirection = 'asc';
-                    }
-                    tableHeaders.forEach(h => h.classList.remove('asc', 'desc'));
-                    header.classList.add(sortDirection);
-                    loadFiles(currentPath);
-                });
-            });
-
-            transcribeFileButton.addEventListener("click", function() {
-                if (!selectedItem || selectedItem.isDirectory) {
-                    alert("请选择要转录的文件。");
-                    return;
-                }
-                modalTitle.textContent = "转录文件";
-                document.getElementById('file-path-group').style.display = 'block';
-                document.getElementById('single-file-options').style.display = 'block';
-                document.getElementById('folder-path-group').style.display = 'none';
-                document.getElementById('batch-file-options').style.display = 'none';
-                fileExtensionGroup.style.display = 'none';
-                filePathInput.value = selectedItem.path;
-                modal.style.display = "block";
-            });
-
-            batchTranscribeFolderButton.addEventListener("click", function() {
-                if (!selectedItem || !selectedItem.isDirectory) {
-                    alert("请选择要批量转录的文件夹。");
-                    return;
-                }
-                modalTitle.textContent = "批量转录文件夹";
-                document.getElementById('file-path-group').style.display = 'none';
-                document.getElementById('single-file-options').style.display = 'none';
-                document.getElementById('folder-path-group').style.display = 'block';
-                document.getElementById('batch-file-options').style.display = 'block';
-                fileExtensionGroup.style.display = 'block';
-                folderPathInput.value = selectedItem.path;
-                modal.style.display = "block";
-            });
-
-            closeButton.addEventListener("click", () => {
-                modal.style.display = "none";
-            });
-
-            window.addEventListener("click", (event) => {
-                if (event.target == modal) {
-                    modal.style.display = "none";
-                }
-            });
-
-            form.addEventListener("submit", function(e) {
-                e.preventDefault();
-                const isBatch = document.getElementById('folder-path-group').style.display === 'block';
-                const url = isBatch ? '/tasks/batch-audio-transcription' : '/tasks/audio-transcription';
-                let body;
-
-                if (isBatch) {
-                    body = {
-                        directory_path: folderPathInput.value,
-                        file_extension: fileExtensionSelect.value,
-                        engine_model_type: document.getElementById('batch-engine-model-type').value,
-                        channel_num: parseInt(document.getElementById('batch-channel-num').value, 10),
-                        res_text_format: parseInt(document.getElementById('batch-res-text-format').value, 10),
-                        hotword_id: document.getElementById('batch-hotword-id').value || null
-                    };
-                } else {
-                    body = {
-                        local_audio_path: filePathInput.value,
-                        engine_model_type: document.getElementById('engine-model-type').value,
-                        channel_num: parseInt(document.getElementById('channel-num').value, 10),
-                        res_text_format: parseInt(document.getElementById('res-text-format').value, 10),
-                        hotword_id: document.getElementById('hotword-id').value || null
-                    };
-                }
-
-                fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(body)
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.json().then(err => {
-                            // Construct a detailed error message
-                            let errorMessage = `创建任务失败。服务器返回状态: ${response.status}.`;
-                            if (err.detail) {
-                                if (Array.isArray(err.detail)) {
-                                    const details = err.detail.map(d => {
-                                        const field = d.loc.join(' -> ');
-                                        return `${field}: ${d.msg}`;
-                                    }).join('; ');
-                                    errorMessage += ` 详情: ${details}`;
-                                } else {
-                                    errorMessage += ` 详情: ${err.detail}`;
-                                }
-                            }
-                            throw new Error(errorMessage);
-                        });
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    let successMessage = '';
-                    if (isBatch) {
-                        if (data && data.length > 0) {
-                            successMessage = `成功创建 ${data.length} 个批量转录任务。`;
-                        } else {
-                            successMessage = "没有找到匹配的文件，未创建任务。";
-                        }
-                    } else {
-                        successMessage = `任务已创建，ID: ${data.id}`;
-                    }
-                    alert(successMessage);
-                    modal.style.display = "none";
-                })
-                .catch(error => {
-                    console.error('错误:', error);
-                    alert(error.message);
-                });
-            });
-
-            loadFiles('');
+            }
         });
-    </script>
+
+        backButton.addEventListener("click", function () {
+            // Determine parent path
+            if (!currentPath) return;
+            // Supports both Windows backslash and Unix slash for demo
+            const separator = currentPath.includes('\\') ? '\\' : '/';
+            const parentPath = currentPath.substring(0, currentPath.lastIndexOf(separator));
+            loadFiles(parentPath);
+        });
+
+        selectAll.addEventListener("change", function () {
+            const checkboxes = document.querySelectorAll(".file-checkbox");
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+                const row = checkbox.closest('tr');
+                if (selectAll.checked) row.classList.add('selected');
+                else row.classList.remove('selected');
+            });
+        });
+
+        tableHeaders.forEach(header => {
+            header.addEventListener("click", function () {
+                const newSortColumn = header.dataset.sort;
+                if (sortColumn === newSortColumn) {
+                    sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortColumn = newSortColumn;
+                    sortDirection = 'asc';
+                }
+                tableHeaders.forEach(h => h.classList.remove('asc', 'desc'));
+                header.classList.add(sortDirection);
+                loadFiles(currentPath);
+            });
+        });
+
+        transcribeFileButton.addEventListener("click", function () {
+            if (!selectedItem || selectedItem.isDirectory) {
+                alert("请先选择一个要转录的文件 (非文件夹)。");
+                return;
+            }
+            modalTitle.textContent = "转录单个文件";
+            document.getElementById('file-path-group').style.display = 'block';
+            document.getElementById('single-file-options').style.display = 'block';
+            document.getElementById('folder-path-group').style.display = 'none';
+            document.getElementById('batch-file-options').style.display = 'none';
+
+            filePathInput.value = selectedItem.path;
+            modal.style.display = "block";
+        });
+
+        batchTranscribeFolderButton.addEventListener("click", function () {
+            if (!selectedItem || !selectedItem.isDirectory) {
+                alert("请先选择一个要批量转录的文件夹。");
+                return;
+            }
+            modalTitle.textContent = "批量转录文件夹";
+            document.getElementById('file-path-group').style.display = 'none';
+            document.getElementById('single-file-options').style.display = 'none';
+            document.getElementById('folder-path-group').style.display = 'block';
+            document.getElementById('batch-file-options').style.display = 'block';
+
+            folderPathInput.value = selectedItem.path;
+            modal.style.display = "block";
+        });
+
+        closeButton.addEventListener("click", () => {
+            modal.style.display = "none";
+        });
+
+        window.addEventListener("click", (event) => {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        });
+
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+            const isBatch = document.getElementById('folder-path-group').style.display === 'block';
+            const url = isBatch ? '/tasks/batch-audio-transcription' : '/tasks/audio-transcription';
+            let body;
+
+            if (isBatch) {
+                body = {
+                    directory_path: folderPathInput.value,
+                    file_extension: fileExtensionSelect.value,
+                    engine_model_type: document.getElementById('batch-engine-model-type').value,
+                    channel_num: parseInt(document.getElementById('batch-channel-num').value, 10),
+                    res_text_format: parseInt(document.getElementById('batch-res-text-format').value, 10),
+                    hotword_id: document.getElementById('batch-hotword-id').value || null
+                };
+            } else {
+                body = {
+                    local_audio_path: filePathInput.value,
+                    engine_model_type: document.getElementById('engine-model-type').value,
+                    channel_num: parseInt(document.getElementById('channel-num').value, 10),
+                    res_text_format: parseInt(document.getElementById('res-text-format').value, 10),
+                    hotword_id: document.getElementById('hotword-id').value || null
+                };
+            }
+
+            // Visual feedback during submit
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.textContent;
+            submitBtn.textContent = '处理中...';
+            submitBtn.disabled = true;
+
+            fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            })
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.json().then(err => {
+                                let errorMessage = `任务失败 (${response.status})`;
+                                if (err.detail) {
+                                    if (Array.isArray(err.detail)) {
+                                        const details = err.detail.map(d => `${d.loc.join(' -> ')}: ${d.msg}`).join('; ');
+                                        errorMessage += `\n详情: ${details}`;
+                                    } else {
+                                        errorMessage += `\n详情: ${err.detail}`;
+                                    }
+                                }
+                                throw new Error(errorMessage);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        let successMessage = '';
+                        if (isBatch) {
+                            successMessage = data && data.length > 0
+                                    ? `成功创建 ${data.length} 个转录任务。`
+                                    : "没有找到匹配的文件，未创建任务。";
+                        } else {
+                            successMessage = `任务已创建成功！\nID: ${data.id}`;
+                        }
+                        alert(successMessage);
+                        modal.style.display = "none";
+                    })
+                    .catch(error => {
+                        console.error('错误:', error);
+                        alert(error.message);
+                    })
+                    .finally(() => {
+                        submitBtn.textContent = originalBtnText;
+                        submitBtn.disabled = false;
+                    });
+        });
+
+        // Initial load
+        loadFiles('');
+    });
+</script>
 </body>
 </html>

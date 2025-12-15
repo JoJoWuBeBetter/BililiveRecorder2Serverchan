@@ -258,4 +258,5 @@ cython_debug/
 *.m4a
 *.mid
 *.midi
+.idea
 
