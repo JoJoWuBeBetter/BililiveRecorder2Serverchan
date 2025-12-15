@@ -17,10 +17,10 @@ ENV GUNICORN_TIMEOUT=300
 WORKDIR /app
 
 # Update package list and install ffmpeg
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg ca-certificates && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+#RUN apt-get update && \
+#    apt-get install -y --no-install-recommends ffmpeg ca-certificates && \
+#    apt-get clean && \
+#    rm -rf /var/lib/apt/lists/*
 
 # Copy requirements.txt first to leverage Docker layer caching
 COPY requirements.txt .
