@@ -1,5 +1,6 @@
 # Use a slim Python image for smaller size and faster builds
-FROM docker.1ms.run/python:3.9-slim-bullseye
+#FROM docker.1ms.run/python:3.9-slim-bullseye
+FROM python3.9-ffmpeg:latest
 
 # Set environment variables for the container
 ENV SERVERCHAN_SEND_KEY=""
