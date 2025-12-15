@@ -36,4 +36,9 @@ def update_task(db: Session, task_id: uuid.UUID, updates: dict):
 
 
 def get_tasks_by_batch_id(db: Session, batch_id: uuid.UUID):
-    return db.query(TranscriptionTask).filter_by(batch_id=batch_id).all()
+    return (
+        db.query(TranscriptionTask)
+        .filter_by(batch_id=batch_id)
+        .order_by(TranscriptionTask.original_audio_path)
+        .all()
+    )

@@ -177,6 +177,9 @@ async def get_batch_transcription_results(
     # 1. 查询该批量ID下的所有任务
     tasks = get_tasks_by_batch_id(db, batch_id)
 
+    # Ensure tasks are processed in order of their original audio path
+    tasks = sorted(tasks, key=lambda task: task.original_audio_path)
+
     if not tasks:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
