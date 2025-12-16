@@ -10,7 +10,7 @@ from config import logger, VIDEO_DIRECTORY
 from crud.task_crud import create_task, get_task, get_tasks_by_batch_id
 from database import SessionLocal
 from models.task import BatchTranscriptionResults, TaskStatus
-from schemas.task import TaskCreate, Task, BatchTaskCreate, MultiFileTaskCreate
+from schemas.task import TaskCreate, Task, MultiFileTaskCreate
 from services import transcription_service, ffmpeg_service
 
 router = APIRouter(
@@ -109,6 +109,7 @@ async def create_multi_file_transcription_task(
     created_tasks: List[Task] = []
     task_ids: List[uuid.UUID] = []
     errors: List[str] = []
+    batch_id = uuid.uuid4()
 
     for provided_path in payload.file_paths:
         absolute_path = provided_path if os.path.isabs(provided_path) else os.path.join(VIDEO_DIRECTORY, provided_path)
@@ -131,7 +132,8 @@ async def create_multi_file_transcription_task(
             engine_model_type=payload.engine_model_type,
             channel_num=payload.channel_num,
             res_text_format=payload.res_text_format,
-            hotword_id=payload.hotword_id
+            hotword_id=payload.hotword_id,
+            batch_id=batch_id,
         )
 
         db_task = create_task(db=db, task_data=single_task_data)
@@ -149,89 +151,6 @@ async def create_multi_file_transcription_task(
 
     background_tasks.add_task(transcription_service.run_batch_transcription_pipeline, db, task_ids, asr_params)
 
-    return created_tasks
-
-
-@router.post("/batch-audio-transcription", status_code=status.HTTP_202_ACCEPTED, response_model=List[Task])
-async def create_batch_transcription_task(
-        batch_request: BatchTaskCreate,
-        background_tasks: BackgroundTasks,
-        db: Session = Depends(get_db)
-):
-    """
-    从指定文件夹中批量创建语音转写任务。
-
-    此接口会立即返回，所有找到的文件的转写任务都将在后台执行。
-
-    - **directory_path**: 服务器上包含音频文件的文件夹绝对路径。
-    - **file_extension**: (可选) 要筛选的文件扩展名，例如 'wav' 或 'mp3'。不提供则处理文件夹内所有文件。
-    - **engine_model_type**: 应用于所有文件的 ASR 引擎类型。
-    """
-    logger.info(f"Received batch transcription request for directory: {batch_request.directory_path}")
-
-    # Convert relative path to absolute path if necessary
-    if not os.path.isabs(batch_request.directory_path):
-        logger.warning(f"Received relative path: {batch_request.directory_path}. Converting to absolute path.")
-        batch_request.directory_path = os.path.join(VIDEO_DIRECTORY, batch_request.directory_path)
-        logger.info(f"Converted to absolute path: {batch_request.directory_path}")
-
-    # --- 1. 验证文件夹路径是否存在 ---
-    if not os.path.isdir(batch_request.directory_path):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Directory not found: {batch_request.directory_path}"
-        )
-
-    created_tasks = []
-    task_ids = []
-    asr_params = {
-        "engine_model_type": batch_request.engine_model_type,
-        "channel_num": batch_request.channel_num,
-        "res_text_format": batch_request.res_text_format,
-        "hotword_id": batch_request.hotword_id
-    }
-
-    batch_id = uuid.uuid4()
-
-    # --- 2. 遍历文件夹中的文件 ---
-    for filename in os.listdir(batch_request.directory_path):
-        full_path = os.path.join(batch_request.directory_path, filename)
-
-        # 检查是否是文件，而不是子文件夹
-        if not os.path.isfile(full_path):
-            continue
-
-        # 检查文件扩展名是否匹配 (如果提供了该选项)
-        if batch_request.file_extension and not filename.lower().endswith(f".{batch_request.file_extension.lower()}"):
-            continue
-
-        logger.info(f"Found matching file: {full_path}")
-
-        # --- 3. 为每个文件创建任务 ---
-        # a. 构造单个任务的请求数据
-        single_task_data = TaskCreate(
-            local_audio_path=full_path,
-            engine_model_type=batch_request.engine_model_type,
-            channel_num=batch_request.channel_num,
-            res_text_format=batch_request.res_text_format,
-            batch_id=batch_id,
-            hotword_id=batch_request.hotword_id
-        )
-
-        # b. 在数据库中创建任务记录
-        db_task = create_task(db=db, task_data=single_task_data)
-
-        created_tasks.append(db_task)
-        task_ids.append(db_task.id)
-
-    if not created_tasks:
-        logger.warning(
-            f"No matching files found in {batch_request.directory_path} with extension '{batch_request.file_extension}'")
-    else:
-        background_tasks.add_task(transcription_service.run_batch_transcription_pipeline, db, task_ids, asr_params)
-        logger.info(f"Scheduled {len(created_tasks)} tasks from directory {batch_request.directory_path}.")
-
-    # --- 4. 立即返回所有已创建任务的初始信息 ---
     return created_tasks
 
 

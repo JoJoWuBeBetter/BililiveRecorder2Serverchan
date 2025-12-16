@@ -420,13 +420,6 @@
                 </svg>
                 转录文件
             </button>
-            <button id="batch-transcribe-folder-button" class="btn-primary">
-                <svg class="icon" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"
-                     stroke-linejoin="round">
-                    <use href="#icon-layers"></use>
-                </svg>
-                批量转录文件夹
-            </button>
         </div>
     </header>
 
@@ -461,10 +454,6 @@
                     <label for="file-path">选定文件路径（支持多选，每行一个）</label>
                     <textarea id="file-path" name="file_path" rows="4" readonly></textarea>
                 </div>
-                <div id="folder-path-group" class="form-group" style="display: none;">
-                    <label for="folder-path">选定文件夹路径</label>
-                    <input type="text" id="folder-path" name="folder_path" readonly>
-                </div>
 
                 <div id="single-file-options">
                     <div class="form-group">
@@ -486,39 +475,6 @@
                         <input type="text" id="hotword-id" name="hotword_id" placeholder="例如: hotword_123">
                     </div>
                 </div>
-
-                <div id="batch-file-options" style="display: none;">
-                    <div id="file-extension-group" class="form-group">
-                        <label for="file-extension">目标文件扩展名</label>
-                        <select id="file-extension" name="file_extension">
-                            <option value="flac">.flac (无损音频)</option>
-                            <option value="mp3">.mp3</option>
-                            <option value="mp4">.mp4 (视频)</option>
-                            <option value="m4a">.m4a</option>
-                            <option value="wav">.wav</option>
-                            <option value="aac">.aac</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="batch-engine-model-type">引擎模型 (Model Type)</label>
-                        <input type="text" id="batch-engine-model-type" name="batch_engine_model_type"
-                               value="16k_zh_large">
-                    </div>
-                    <div style="display: flex; gap: 20px;">
-                        <div class="form-group" style="flex: 1;">
-                            <label for="batch-channel-num">音频通道数</label>
-                            <input type="number" id="batch-channel-num" name="batch_channel_num" value="1">
-                        </div>
-                        <div class="form-group" style="flex: 1;">
-                            <label for="batch-res-text-format">结果格式</label>
-                            <input type="number" id="batch-res-text-format" name="batch_res_text_format" value="0">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="batch-hotword-id">热词表 ID (可选)</label>
-                        <input type="text" id="batch-hotword-id" name="batch_hotword_id">
-                    </div>
-                </div>
             </div>
 
             <div class="modal-footer">
@@ -535,14 +491,10 @@
         const backButton = document.getElementById("back-button");
         const tableHeaders = document.querySelectorAll("th[data-sort]");
         const transcribeFileButton = document.getElementById("transcribe-file-button");
-        const batchTranscribeFolderButton = document.getElementById("batch-transcribe-folder-button");
         const modal = document.getElementById("transcription-modal");
         const modalTitle = document.getElementById("modal-title");
         const form = document.getElementById("transcription-form");
         const filePathInput = document.getElementById("file-path");
-        const folderPathInput = document.getElementById("folder-path");
-        const fileExtensionGroup = document.getElementById("file-extension-group");
-        const fileExtensionSelect = document.getElementById("file-extension");
         const closeButton = document.querySelector(".close-button");
 
         let currentPath = '';
@@ -751,10 +703,6 @@
             return Array.from(selectedItems.values()).filter(item => !item.isDirectory);
         }
 
-        function getSelectedDirectories() {
-            return Array.from(selectedItems.values()).filter(item => item.isDirectory);
-        }
-
         transcribeFileButton.addEventListener("click", function () {
             const files = getSelectedFiles();
             if (!files.length) {
@@ -767,28 +715,9 @@
             modalTitle.textContent = files.length > 1 ? "转录多选文件" : "转录文件";
             document.getElementById('file-path-group').style.display = 'block';
             document.getElementById('single-file-options').style.display = 'block';
-            document.getElementById('folder-path-group').style.display = 'none';
-            document.getElementById('batch-file-options').style.display = 'none';
             form.dataset.mode = 'files';
 
             filePathInput.value = selectedFilePaths.join('\n');
-            modal.style.display = "block";
-        });
-
-        batchTranscribeFolderButton.addEventListener("click", function () {
-            const directories = getSelectedDirectories();
-            if (directories.length !== 1) {
-                alert("请选中且仅选中一个要批量转录的文件夹。");
-                return;
-            }
-            modalTitle.textContent = "批量转录文件夹";
-            document.getElementById('file-path-group').style.display = 'none';
-            document.getElementById('single-file-options').style.display = 'none';
-            document.getElementById('folder-path-group').style.display = 'block';
-            document.getElementById('batch-file-options').style.display = 'block';
-            form.dataset.mode = 'folder';
-
-            folderPathInput.value = directories[0].path;
             modal.style.display = "block";
         });
 
@@ -804,32 +733,17 @@
 
         form.addEventListener("submit", function (e) {
             e.preventDefault();
-            const mode = form.dataset.mode || 'files';
-            const isFolderBatch = mode === 'folder';
-            const url = isFolderBatch ? '/tasks/batch-audio-transcription' : '/tasks/multi-file-transcription';
-            let body;
-
-            if (isFolderBatch) {
-                body = {
-                    directory_path: folderPathInput.value,
-                    file_extension: fileExtensionSelect.value,
-                    engine_model_type: document.getElementById('batch-engine-model-type').value,
-                    channel_num: parseInt(document.getElementById('batch-channel-num').value, 10),
-                    res_text_format: parseInt(document.getElementById('batch-res-text-format').value, 10),
-                    hotword_id: document.getElementById('batch-hotword-id').value || null
-                };
-            } else {
-                const filePaths = selectedFilePaths.length
-                        ? selectedFilePaths
-                        : filePathInput.value.split('\n').map(p => p.trim()).filter(Boolean);
-                body = {
-                    file_paths: filePaths,
-                    engine_model_type: document.getElementById('engine-model-type').value,
-                    channel_num: parseInt(document.getElementById('channel-num').value, 10),
-                    res_text_format: parseInt(document.getElementById('res-text-format').value, 10),
-                    hotword_id: document.getElementById('hotword-id').value || null
-                };
-            }
+            const url = '/tasks/multi-file-transcription';
+            const filePaths = selectedFilePaths.length
+                    ? selectedFilePaths
+                    : filePathInput.value.split('\n').map(p => p.trim()).filter(Boolean);
+            const body = {
+                file_paths: filePaths,
+                engine_model_type: document.getElementById('engine-model-type').value,
+                channel_num: parseInt(document.getElementById('channel-num').value, 10),
+                res_text_format: parseInt(document.getElementById('res-text-format').value, 10),
+                hotword_id: document.getElementById('hotword-id').value || null
+            };
 
             // Visual feedback during submit
             const submitBtn = form.querySelector('button[type="submit"]');
@@ -859,20 +773,14 @@
                         }
                         return response.json();
                     })
-                    .then(data => {
-                        let successMessage = '';
-                        if (isFolderBatch) {
-                            successMessage = data && data.length > 0
-                                    ? `成功创建 ${data.length} 个转录任务。`
-                                    : "没有找到匹配的文件，未创建任务。";
-                        } else {
-                            successMessage = data && data.length > 0
-                                    ? `成功创建 ${data.length} 个转录任务。`
-                                    : "没有找到可处理的文件，未创建任务。";
-                        }
-                        alert(successMessage);
-                        modal.style.display = "none";
-                    })
+                      .then(data => {
+                          let successMessage = '';
+                          successMessage = data && data.length > 0
+                                  ? `成功创建 ${data.length} 个转录任务。`
+                                  : "没有找到可处理的文件，未创建任务。";
+                          alert(successMessage);
+                          modal.style.display = "none";
+                      })
                     .catch(error => {
                         console.error('错误:', error);
                         alert(error.message);
