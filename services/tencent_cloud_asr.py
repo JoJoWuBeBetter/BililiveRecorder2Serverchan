@@ -13,6 +13,28 @@ from tencentcloud.common.profile.http_profile import HttpProfile
 
 from config import get_tencentcloud_credentials, logger  # 从 config 导入 logger
 
+ERROR_CODE_MESSAGES = {
+    "FailedOperation.ErrorDownFile": "下载音频文件失败。",
+    "FailedOperation.ErrorRecognize": "识别失败。",
+    "FailedOperation.NoSuchTask": "错误的 TaskId。",
+    "FailedOperation.ServiceIsolate": "账号欠费已被停用，请充值后重试。",
+    "FailedOperation.UserHasNoFreeAmount": "资源包耗尽，请购买资源包或开通后付费。",
+    "FailedOperation.UserHasNoAmount": "资源包耗尽，请购买资源包或开通后付费。",
+    "InternalError.FailAccessDatabase": "访问腾讯云数据库失败。",
+    "InternalError.FailAccessRedis": "访问腾讯云 Redis 失败。",
+    "InvalidParameter": "请求参数错误。",
+    "MissingParameter": "缺少必要的请求参数。",
+    "UnknownParameter": "包含未知的请求参数。",
+}
+
+ERROR_CODE_SUGGESTIONS = {
+    "FailedOperation.ServiceIsolate": "请检查腾讯云账户余额，充值后重新发起任务。",
+    "FailedOperation.UserHasNoFreeAmount": "请购买新的语音识别资源包或开启按量计费。",
+    "FailedOperation.UserHasNoAmount": "请购买新的语音识别资源包或开启按量计费。",
+    "InvalidParameter": "检查识别模型、声道数等参数配置是否正确。",
+    "MissingParameter": "确认请求中已包含必需的参数字段。",
+}
+
 # 获取腾讯云凭证
 SECRET_ID, SECRET_KEY = get_tencentcloud_credentials()
 
@@ -22,6 +44,21 @@ class TencentCloudASRService:
     封装腾讯云语音识别 (ASR) 服务。
     """
     _client = None
+
+    @staticmethod
+    def _build_error_detail(err: TencentCloudSDKException) -> Dict[str, Any]:
+        code = err.get_code() if hasattr(err, "get_code") else None
+        default_message = err.get_message() if hasattr(err, "get_message") else str(err)
+        user_message = ERROR_CODE_MESSAGES.get(code, default_message)
+        detail: Dict[str, Any] = {"message": user_message}
+
+        if code:
+            detail["code"] = code
+        suggestion = ERROR_CODE_SUGGESTIONS.get(code)
+        if suggestion:
+            detail["suggestion"] = suggestion
+
+        return detail
 
     @classmethod
     def _get_asr_client(cls) -> asr_client.AsrClient:
@@ -101,7 +138,7 @@ class TencentCloudASRService:
             logger.error(f"Tencent Cloud ASR SDK Exception: {err}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Tencent Cloud ASR service error: {err.get_message()}"
+                detail=cls._build_error_detail(err),
             )
         except ValueError as ve:
             logger.error(f"Invalid parameters for ASR task: {ve}")
@@ -136,7 +173,7 @@ class TencentCloudASRService:
             logger.error(f"Tencent Cloud ASR SDK Exception for task status: {err}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Tencent Cloud ASR task status error: {err.get_message()}"
+                detail=cls._build_error_detail(err),
             )
         except Exception as e:
             logger.exception(f"An unexpected error occurred during Tencent Cloud ASR task status query: {e}")

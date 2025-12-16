@@ -3,6 +3,7 @@ import asyncio
 import os
 import uuid
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from config import logger
@@ -81,31 +82,61 @@ async def run_transcription_pipeline(db: Session, task_id: uuid.UUID, asr_params
         })
 
     except Exception as e:
-        error_message = str(e)
+        error_code = None
+        suggestion = None
+
+        if isinstance(e, HTTPException):
+            detail = e.detail
+            if isinstance(detail, dict):
+                error_code = detail.get("code")
+                suggestion = detail.get("suggestion")
+                error_message = detail.get("message") or str(detail)
+            else:
+                error_message = str(detail) if detail else str(e)
+        else:
+            error_message = str(e)
+
         logger.error(f"[Task {task_id}] Pipeline failed: {error_message}", exc_info=True)
         task_crud.update_task(db, task_id, {"status": TaskStatus.FAILED, "error_message": error_message})
 
         # 7. 通过 ServerChan 推送告警
         alert_title = "[转写失败] 腾讯云 ASR 调用异常"
-        tags = "asr,error"
+        tag_list = ["asr", "error"]
 
-        if "Resource pack exhausted" in error_message or "UserHasNoAmount" in error_message:
-            alert_title = "[告警] 腾讯云 ASR 资源包已用尽"
-            tags = "asr,error,quota"
+        if error_code in {"FailedOperation.UserHasNoFreeAmount", "FailedOperation.UserHasNoAmount"} or (
+            "Resource pack exhausted" in error_message or "UserHasNoAmount" in error_message
+        ):
+            alert_title = "[警] 腾讯云 ASR 资源包已用尽"
+            tag_list.append("quota")
+        elif error_code == "FailedOperation.ServiceIsolate":
+            alert_title = "[警] 腾讯云 ASR 账号欠费已停用"
+            tag_list.append("billing")
+
+        if error_code:
+            tag_list.append(error_code)
 
         original_path = getattr(task, "original_audio_path", "未知文件")
         short_description = f"任务 {task_id} 处理 {os.path.basename(original_path)} 时失败"
-        desp = (
-            f"任务 {task_id} 在处理文件 {original_path} 时发生错误。\n"
-            f"错误详情：{error_message}\n\n"
-            "请检查腾讯云资源包或参数配置。"
-        )
+        desp_lines = [
+            f"任务 {task_id} 在处理文件 {original_path} 时发生错误。",
+            f"错误详情：{error_message}",
+        ]
+
+        if error_code:
+            desp_lines.append(f"错误码：{error_code}")
+        if suggestion:
+            desp_lines.append(f"处理建议：{suggestion}")
+
+        if "请检查腾讯云资源包" not in error_message and not suggestion:
+            desp_lines.append("请检查腾讯云资源包、计费状态或参数配置。")
+
+        desp = "\n".join(desp_lines)
 
         serverchan_response = serverchan.send_serverchan_message(
             alert_title,
             desp,
             short_description,
-            tags,
+            ",".join(tag_list),
         )
 
         if serverchan_response.get("code") != 0:
