@@ -42,3 +42,14 @@ def get_tasks_by_batch_id(db: Session, batch_id: uuid.UUID):
         .order_by(TranscriptionTask.original_audio_path)
         .all()
     )
+
+
+def list_tasks(db: Session, limit: int = 200):
+    """按创建时间逆序列出最近的转写任务。"""
+
+    return (
+        db.query(TranscriptionTask)
+        .order_by(TranscriptionTask.created_at.desc())
+        .limit(limit)
+        .all()
+    )

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from config import logger, VIDEO_DIRECTORY
-from crud.task_crud import create_task, get_task, get_tasks_by_batch_id
+from crud.task_crud import create_task, get_task, get_tasks_by_batch_id, list_tasks
 from database import SessionLocal
 from models.task import BatchTranscriptionResults, TaskStatus
 from schemas.task import TaskCreate, Task, MultiFileTaskCreate
@@ -152,6 +152,13 @@ async def create_multi_file_transcription_task(
     background_tasks.add_task(transcription_service.run_batch_transcription_pipeline, db, task_ids, asr_params)
 
     return created_tasks
+
+
+@router.get("/", response_model=List[Task])
+async def get_recent_tasks(limit: int = 200, db: Session = Depends(get_db)):
+    """列出最近的转写任务，按创建时间倒序排列。"""
+
+    return list_tasks(db, limit=limit)
 
 
 @router.get("/{task_id}", response_model=Task)
