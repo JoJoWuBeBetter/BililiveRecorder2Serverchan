@@ -309,7 +309,8 @@
         }
 
         .form-group input,
-        .form-group select {
+        .form-group select,
+        .form-group textarea {
             width: 100%;
             padding: 10px 12px;
             border: 1px solid var(--border-color);
@@ -322,7 +323,8 @@
         }
 
         .form-group input:focus,
-        .form-group select:focus {
+        .form-group select:focus,
+        .form-group textarea:focus {
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
@@ -456,8 +458,8 @@
         <form id="transcription-form">
             <div class="modal-body">
                 <div id="file-path-group" class="form-group">
-                    <label for="file-path">选定文件路径</label>
-                    <input type="text" id="file-path" name="file_path" readonly>
+                    <label for="file-path">选定文件路径（支持多选，每行一个）</label>
+                    <textarea id="file-path" name="file_path" rows="4" readonly></textarea>
                 </div>
                 <div id="folder-path-group" class="form-group" style="display: none;">
                     <label for="folder-path">选定文件夹路径</label>
@@ -546,8 +548,8 @@
         let currentPath = '';
         let sortColumn = null;
         let sortDirection = 'asc';
-        let selectedRow = null;
-        let selectedItem = null;
+        const selectedItems = new Map();
+        let selectedFilePaths = [];
 
         // Helper to get SVG icons
         function getIconHtml(isDirectory, filename) {
@@ -622,12 +624,16 @@
                     return a.name.localeCompare(b.name);
                 });
             }
-
+        
             fileList.innerHTML = '';
             data.forEach(file => {
                 const row = fileList.insertRow();
                 const extension = file.is_directory ? '-' : file.name.split('.').pop();
                 const iconHtml = getIconHtml(file.is_directory, file.name);
+
+                row.dataset.path = file.path;
+                row.dataset.isDirectory = file.is_directory;
+                row.dataset.name = file.name;
 
                 row.innerHTML = `
                         <td style="text-align: center;"><input type="checkbox" class="file-checkbox"></td>
@@ -640,8 +646,9 @@
             });
             currentPath = path;
             backButton.style.display = path ? 'inline-flex' : 'none';
-            selectedRow = null;
-            selectedItem = null;
+            selectedItems.clear();
+            selectedFilePaths = [];
+            selectAll.checked = false;
         }
 
         function formatSize(bytes) {
@@ -672,27 +679,9 @@
             }
 
             // Handle Row Selection
-            if (e.target.type !== 'checkbox') {
-                // Clear previous selection
-                if (selectedRow) {
-                    selectedRow.classList.remove('selected');
-                    // Optional: uncheck previous if strict single select
-                }
-
-                // Toggle current
-                if (selectedRow === row) {
-                    selectedRow = null;
-                    selectedItem = null;
-                } else {
-                    selectedRow = row;
-                    selectedRow.classList.add('selected');
-                    selectedItem = {path, isDirectory, name: link.textContent};
-
-                    // Auto-check the checkbox for visual consistency
-                    const checkbox = row.querySelector('.file-checkbox');
-                    if (checkbox) checkbox.checked = true;
-                }
-            }
+            const checkbox = row.querySelector('.file-checkbox');
+            const newState = e.target.classList.contains('file-checkbox') ? checkbox.checked : !checkbox.checked;
+            toggleSelection(row, newState);
         });
 
         backButton.addEventListener("click", function () {
@@ -705,12 +694,11 @@
         });
 
         selectAll.addEventListener("change", function () {
-            const checkboxes = document.querySelectorAll(".file-checkbox");
+            const checkboxes = fileList.querySelectorAll(".file-checkbox");
             checkboxes.forEach(checkbox => {
                 checkbox.checked = selectAll.checked;
                 const row = checkbox.closest('tr');
-                if (selectAll.checked) row.classList.add('selected');
-                else row.classList.remove('selected');
+                toggleSelection(row, selectAll.checked);
             });
         });
 
@@ -729,24 +717,68 @@
             });
         });
 
-        transcribeFileButton.addEventListener("click", function () {
-            if (!selectedItem || selectedItem.isDirectory) {
-                alert("请先选择一个要转录的文件 (非文件夹)。");
+        function toggleSelection(row, shouldSelect) {
+            if (!row) return;
+
+            const path = row.dataset.path;
+            const isDirectory = row.dataset.isDirectory === 'true';
+            const name = row.dataset.name;
+
+            if (shouldSelect) {
+                selectedItems.set(path, {path, isDirectory, name});
+                row.classList.add('selected');
+            } else {
+                selectedItems.delete(path);
+                row.classList.remove('selected');
+            }
+
+            const checkbox = row.querySelector('.file-checkbox');
+            if (checkbox) checkbox.checked = shouldSelect;
+            updateSelectAllState();
+        }
+
+        function updateSelectAllState() {
+            const checkboxes = fileList.querySelectorAll('.file-checkbox');
+            if (!checkboxes.length) {
+                selectAll.checked = false;
                 return;
             }
-            modalTitle.textContent = "转录单个文件";
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            selectAll.checked = checkedCount === checkboxes.length;
+        }
+
+        function getSelectedFiles() {
+            return Array.from(selectedItems.values()).filter(item => !item.isDirectory);
+        }
+
+        function getSelectedDirectories() {
+            return Array.from(selectedItems.values()).filter(item => item.isDirectory);
+        }
+
+        transcribeFileButton.addEventListener("click", function () {
+            const files = getSelectedFiles();
+            if (!files.length) {
+                alert("请至少选择一个要转录的音频/视频文件。");
+                return;
+            }
+
+            selectedFilePaths = files.map(item => item.path);
+
+            modalTitle.textContent = files.length > 1 ? "转录多选文件" : "转录文件";
             document.getElementById('file-path-group').style.display = 'block';
             document.getElementById('single-file-options').style.display = 'block';
             document.getElementById('folder-path-group').style.display = 'none';
             document.getElementById('batch-file-options').style.display = 'none';
+            form.dataset.mode = 'files';
 
-            filePathInput.value = selectedItem.path;
+            filePathInput.value = selectedFilePaths.join('\n');
             modal.style.display = "block";
         });
 
         batchTranscribeFolderButton.addEventListener("click", function () {
-            if (!selectedItem || !selectedItem.isDirectory) {
-                alert("请先选择一个要批量转录的文件夹。");
+            const directories = getSelectedDirectories();
+            if (directories.length !== 1) {
+                alert("请选中且仅选中一个要批量转录的文件夹。");
                 return;
             }
             modalTitle.textContent = "批量转录文件夹";
@@ -754,8 +786,9 @@
             document.getElementById('single-file-options').style.display = 'none';
             document.getElementById('folder-path-group').style.display = 'block';
             document.getElementById('batch-file-options').style.display = 'block';
+            form.dataset.mode = 'folder';
 
-            folderPathInput.value = selectedItem.path;
+            folderPathInput.value = directories[0].path;
             modal.style.display = "block";
         });
 
@@ -771,11 +804,12 @@
 
         form.addEventListener("submit", function (e) {
             e.preventDefault();
-            const isBatch = document.getElementById('folder-path-group').style.display === 'block';
-            const url = isBatch ? '/tasks/batch-audio-transcription' : '/tasks/audio-transcription';
+            const mode = form.dataset.mode || 'files';
+            const isFolderBatch = mode === 'folder';
+            const url = isFolderBatch ? '/tasks/batch-audio-transcription' : '/tasks/multi-file-transcription';
             let body;
 
-            if (isBatch) {
+            if (isFolderBatch) {
                 body = {
                     directory_path: folderPathInput.value,
                     file_extension: fileExtensionSelect.value,
@@ -785,8 +819,11 @@
                     hotword_id: document.getElementById('batch-hotword-id').value || null
                 };
             } else {
+                const filePaths = selectedFilePaths.length
+                        ? selectedFilePaths
+                        : filePathInput.value.split('\n').map(p => p.trim()).filter(Boolean);
                 body = {
-                    local_audio_path: filePathInput.value,
+                    file_paths: filePaths,
                     engine_model_type: document.getElementById('engine-model-type').value,
                     channel_num: parseInt(document.getElementById('channel-num').value, 10),
                     res_text_format: parseInt(document.getElementById('res-text-format').value, 10),
@@ -824,12 +861,14 @@
                     })
                     .then(data => {
                         let successMessage = '';
-                        if (isBatch) {
+                        if (isFolderBatch) {
                             successMessage = data && data.length > 0
                                     ? `成功创建 ${data.length} 个转录任务。`
                                     : "没有找到匹配的文件，未创建任务。";
                         } else {
-                            successMessage = `任务已创建成功！\nID: ${data.id}`;
+                            successMessage = data && data.length > 0
+                                    ? `成功创建 ${data.length} 个转录任务。`
+                                    : "没有找到可处理的文件，未创建任务。";
                         }
                         alert(successMessage);
                         modal.style.display = "none";

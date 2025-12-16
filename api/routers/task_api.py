@@ -10,13 +10,16 @@ from config import logger, VIDEO_DIRECTORY
 from crud.task_crud import create_task, get_task, get_tasks_by_batch_id
 from database import SessionLocal
 from models.task import BatchTranscriptionResults, TaskStatus
-from schemas.task import TaskCreate, Task, BatchTaskCreate
-from services import transcription_service
+from schemas.task import TaskCreate, Task, BatchTaskCreate, MultiFileTaskCreate
+from services import transcription_service, ffmpeg_service
 
 router = APIRouter(
     prefix="/tasks",
     tags=["Transcription Tasks"]
 )
+
+AUDIO_EXTENSIONS = {".aac", ".mp3", ".flac", ".wav", ".m4a", ".ogg"}
+VIDEO_EXTENSIONS = {".mp4", ".flv", ".mkv", ".avi", ".mov", ".m4v", ".ts"}
 
 
 # Dependency to get DB session
@@ -26,6 +29,21 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def _resolve_audio_path(source_path: str) -> str:
+    """根据扩展名决定直接使用音频或先从视频中提取音频。"""
+
+    extension = os.path.splitext(source_path)[1].lower()
+    if extension in AUDIO_EXTENSIONS:
+        return source_path
+    if extension in VIDEO_EXTENSIONS:
+        extracted = ffmpeg_service.extract_aac_audio(source_path)
+        if not extracted:
+            raise RuntimeError(f"Failed to extract audio from video: {source_path}")
+        return extracted
+
+    raise RuntimeError(f"Unsupported file type for transcription: {source_path}")
 
 
 @router.post("/audio-transcription", status_code=status.HTTP_202_ACCEPTED, response_model=Task)
@@ -66,6 +84,72 @@ async def create_transcription_task(
 
     # 3. 立即返回任务初始信息
     return db_task
+
+
+@router.post("/multi-file-transcription", status_code=status.HTTP_202_ACCEPTED, response_model=List[Task])
+async def create_multi_file_transcription_task(
+        payload: MultiFileTaskCreate,
+        background_tasks: BackgroundTasks,
+        db: Session = Depends(get_db)
+):
+    """为浏览器多选的音视频文件创建转写任务。"""
+
+    if not payload.file_paths:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="请至少选择一个文件")
+
+    logger.info(f"Received multi-file transcription request for {len(payload.file_paths)} items")
+
+    asr_params = {
+        "engine_model_type": payload.engine_model_type,
+        "channel_num": payload.channel_num,
+        "res_text_format": payload.res_text_format,
+        "hotword_id": payload.hotword_id
+    }
+
+    created_tasks: List[Task] = []
+    task_ids: List[uuid.UUID] = []
+    errors: List[str] = []
+
+    for provided_path in payload.file_paths:
+        absolute_path = provided_path if os.path.isabs(provided_path) else os.path.join(VIDEO_DIRECTORY, provided_path)
+
+        if not os.path.isfile(absolute_path):
+            errors.append(f"File not found: {provided_path}")
+            logger.warning(f"Skipped non-existent path: {absolute_path}")
+            continue
+
+        try:
+            audio_path = _resolve_audio_path(absolute_path)
+        except Exception as exc:  # noqa: BLE001 - keep detailed feedback
+            error_message = f"Skip {provided_path}: {exc}"
+            errors.append(error_message)
+            logger.warning(error_message)
+            continue
+
+        single_task_data = TaskCreate(
+            local_audio_path=audio_path,
+            engine_model_type=payload.engine_model_type,
+            channel_num=payload.channel_num,
+            res_text_format=payload.res_text_format,
+            hotword_id=payload.hotword_id
+        )
+
+        db_task = create_task(db=db, task_data=single_task_data)
+        created_tasks.append(db_task)
+        task_ids.append(db_task.id)
+
+        logger.info(f"Prepared transcription task for {provided_path} -> {audio_path}")
+
+    if not created_tasks:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="未找到可处理的音频或视频文件。")
+
+    if errors:
+        logger.warning(f"Some files were skipped: {'; '.join(errors)}")
+
+    background_tasks.add_task(transcription_service.run_batch_transcription_pipeline, db, task_ids, asr_params)
+
+    return created_tasks
 
 
 @router.post("/batch-audio-transcription", status_code=status.HTTP_202_ACCEPTED, response_model=List[Task])
