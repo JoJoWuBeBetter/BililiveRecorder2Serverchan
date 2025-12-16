@@ -864,11 +864,15 @@
 
         selectAll.addEventListener("change", function () {
             const checkboxes = fileList.querySelectorAll(".file-checkbox");
+            const shouldSelectAll = selectAll.checked;
+
             checkboxes.forEach(checkbox => {
-                checkbox.checked = selectAll.checked;
+                checkbox.checked = shouldSelectAll;
                 const row = checkbox.closest('tr');
-                toggleSelection(row, selectAll.checked);
+                toggleSelection(row, shouldSelectAll, true);
             });
+
+            updateSelectAllState();
         });
 
         tableHeaders.forEach(header => {
@@ -884,7 +888,7 @@
             });
         });
 
-        function toggleSelection(row, shouldSelect) {
+        function toggleSelection(row, shouldSelect, skipSelectAllUpdate = false) {
             if (!row) return;
             const path = row.dataset.path;
             const isDirectory = row.dataset.isDirectory === 'true';
@@ -900,7 +904,9 @@
 
             const checkbox = row.querySelector('.file-checkbox');
             if (checkbox) checkbox.checked = shouldSelect;
-            updateSelectAllState();
+            if (!skipSelectAllUpdate) {
+                updateSelectAllState();
+            }
         }
 
         function updateSelectAllState() {
