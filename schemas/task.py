@@ -3,7 +3,7 @@ import uuid
 
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from models.task import TaskStatus
 
@@ -33,13 +33,10 @@ class Task(BaseModel):
         from_attributes = True
 
 
-class BatchTaskCreate(BaseModel):
-    """批量创建任务的请求模型"""
-    directory_path: str = Field(..., description="包含音频文件的服务器文件夹绝对路径。")
-    file_extension: Optional[str] = Field(None,
-                                          description="要处理的文件扩展名 (例如 'wav', 'mp3')。如果为 None，则处理所有文件。")
+class MultiFileTaskCreate(BaseModel):
+    """面向浏览器多选文件的批量任务请求模型"""
 
-    # 这些参数将应用于目录中的所有文件
+    file_paths: List[str] = Field(..., description="待转写的文件路径列表（绝对或相对 VIDEO_DIRECTORY）。")
     engine_model_type: str = Field("16k_zh_large", description="ASR 引擎类型。")
     channel_num: int = Field(1, description="音频通道数。")
     res_text_format: int = Field(0, description="转写结果的格式。")
