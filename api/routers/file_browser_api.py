@@ -50,3 +50,10 @@ async def list_files(path: Optional[str] = None):
 @router.get("/browser/", response_class=HTMLResponse)
 async def read_root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+
+@router.get("/browser/tasks", response_class=HTMLResponse)
+async def tasks_console(request: Request):
+    """任务控制台页面。"""
+
+    return templates.TemplateResponse("tasks.html", {"request": request})
