@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文件管理控制台</title>
-    <!-- 引入科技感字体和等宽字体，增加 Noto Sans SC 作为 WDXL Lubrifont SC 的后备 -->
+    <!-- 引入字体：补全了 WDXL Lubrifont SC 的引入 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=WDXL+Lubrifont+SC&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&family=Noto+Sans+SC:wght@400;500;700&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -606,6 +609,11 @@
                         <svg class="icon"><use href="#icon-arrow-left"></use></svg>
                         BACK
                     </button>
+                    <!-- 新增：跳转至任务控制台的入口 -->
+                    <button onclick="window.location.href='/browser/tasks'" class="btn">
+                        TASK_OPS
+                    </button>
+
                     <button id="transcribe-file-button" class="btn-primary">
                         <svg class="icon"><use href="#icon-cpu"></use></svg>
                         INITIATE_PROCESS
