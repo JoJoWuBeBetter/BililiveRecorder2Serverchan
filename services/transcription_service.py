@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from config import logger
 from crud import task_crud
 from models.task import TaskStatus
+from services import serverchan
 from services.tencent_cloud_asr import TencentCloudASRService
 from services.tencent_cloud_cos import TencentCosService
 
@@ -24,6 +25,7 @@ async def run_transcription_pipeline(db: Session, task_id: uuid.UUID, asr_params
     """
     完整的语音转写任务流程
     """
+    task = None
     try:
         # 1. 更新状态为上传中
         logger.info(f"[Task {task_id}] Status -> UPLOADING")
@@ -82,3 +84,35 @@ async def run_transcription_pipeline(db: Session, task_id: uuid.UUID, asr_params
         error_message = str(e)
         logger.error(f"[Task {task_id}] Pipeline failed: {error_message}", exc_info=True)
         task_crud.update_task(db, task_id, {"status": TaskStatus.FAILED, "error_message": error_message})
+
+        # 7. 通过 ServerChan 推送告警
+        alert_title = "[转写失败] 腾讯云 ASR 调用异常"
+        tags = "asr,error"
+
+        if "Resource pack exhausted" in error_message or "UserHasNoAmount" in error_message:
+            alert_title = "[告警] 腾讯云 ASR 资源包已用尽"
+            tags = "asr,error,quota"
+
+        original_path = getattr(task, "original_audio_path", "未知文件")
+        short_description = f"任务 {task_id} 处理 {os.path.basename(original_path)} 时失败"
+        desp = (
+            f"任务 {task_id} 在处理文件 {original_path} 时发生错误。\n"
+            f"错误详情：{error_message}\n\n"
+            "请检查腾讯云资源包或参数配置。"
+        )
+
+        serverchan_response = serverchan.send_serverchan_message(
+            alert_title,
+            desp,
+            short_description,
+            tags,
+        )
+
+        if serverchan_response.get("code") != 0:
+            logger.warning(
+                "[Task %s] Failed to send ServerChan alert: %s",
+                task_id,
+                serverchan_response,
+            )
+        else:
+            logger.info("[Task %s] ServerChan alert sent successfully", task_id)
