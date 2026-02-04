@@ -10,6 +10,8 @@ from crud.settlement_crud import list_import_batches, get_import_batch, list_set
 from database import SessionLocal
 from schemas.settlement import SettlementImportBatch, SettlementImportResult, SettlementRecord, AccountSummary
 from services.settlement_import_service import import_settlement_csv
+from datetime import date, datetime
+
 from services.settlement_summary_service import build_account_summary
 
 router = APIRouter(
@@ -76,5 +78,15 @@ async def get_settlement_records(
 
 
 @router.get("/account-summary", response_model=AccountSummary)
-async def get_account_summary(db: Session = Depends(get_db)):
-    return build_account_summary(db)
+async def get_account_summary(
+    trade_date: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    if trade_date:
+        try:
+            price_date = datetime.strptime(trade_date, "%Y%m%d").date()
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="trade_date 格式应为 YYYYMMDD") from exc
+    else:
+        price_date = date.today()
+    return build_account_summary(db, price_date=price_date)

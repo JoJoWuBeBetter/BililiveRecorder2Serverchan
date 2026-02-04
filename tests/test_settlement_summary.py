@@ -49,6 +49,8 @@ def test_account_summary_basic():
 
         assert summary.cash_balance_yuan == "5000.00"
         assert summary.total_asset_yuan == "6218.00"
+        assert summary.total_market_value_yuan == "1218.00"
+        assert summary.net_inflow_yuan == "5000.00"
         assert summary.position_ratio is not None
         assert len(summary.positions) == 1
         assert summary.positions[0].symbol == "000597"

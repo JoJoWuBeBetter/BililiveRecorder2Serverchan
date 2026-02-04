@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from models.settlement import SettlementImportBatch, SettlementRecord
+from models.settlement import AccountDailySummary, SettlementImportBatch, SettlementRecord
 
 
 def create_import_batch(db: Session, batch: SettlementImportBatch) -> SettlementImportBatch:
@@ -52,6 +52,31 @@ def list_settlement_records(
     if batch_id:
         query = query.filter(SettlementRecord.batch_id == batch_id)
     return query.offset(offset).limit(limit).all()
+
+
+def get_daily_summary(db: Session, summary_date) -> Optional[AccountDailySummary]:
+    return (
+        db.query(AccountDailySummary)
+        .filter(AccountDailySummary.summary_date == summary_date)
+        .first()
+    )
+
+
+def upsert_daily_summary(db: Session, summary: AccountDailySummary) -> AccountDailySummary:
+    existing = get_daily_summary(db, summary.summary_date)
+    if existing:
+        existing.total_asset_cent = summary.total_asset_cent
+        existing.cash_balance_cent = summary.cash_balance_cent
+        existing.total_market_value_cent = summary.total_market_value_cent
+        existing.position_ratio = summary.position_ratio
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    db.add(summary)
+    db.commit()
+    db.refresh(summary)
+    return summary
 
 
 def get_existing_serials(db: Session, serials: Iterable[str]) -> Set[str]:

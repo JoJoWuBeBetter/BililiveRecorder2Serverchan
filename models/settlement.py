@@ -61,3 +61,16 @@ class SettlementRecord(Base):
         UniqueConstraint("raw_row_hash", name="uq_settlement_records_raw_row_hash"),
         Index("ix_settlement_records_batch_id", "batch_id"),
     )
+
+
+class AccountDailySummary(Base):
+    __tablename__ = "account_daily_summaries"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    summary_date = Column(Date, nullable=False, unique=True, index=True)
+    total_asset_cent = Column(Integer, nullable=False, default=0)
+    cash_balance_cent = Column(Integer, nullable=False, default=0)
+    total_market_value_cent = Column(Integer, nullable=False, default=0)
+    position_ratio = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())

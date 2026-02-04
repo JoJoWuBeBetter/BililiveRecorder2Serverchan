@@ -72,5 +72,7 @@ class PositionSummary(BaseModel):
 class AccountSummary(BaseModel):
     total_asset_yuan: str
     cash_balance_yuan: str
+    total_market_value_yuan: str
     positions: list[PositionSummary]
     position_ratio: Optional[float] = None
+    net_inflow_yuan: Optional[str] = None
