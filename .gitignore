@@ -243,6 +243,9 @@ cython_debug/
 
 # 忽略所有 .db 结尾的文件
 *.db
+*.csv
+*.xls
+*.xlsx
 
 # 忽略所有常见的音频文件格式
 *.mp3
