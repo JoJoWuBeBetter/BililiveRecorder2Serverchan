@@ -26,7 +26,7 @@ FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
 
 # Tushare Token
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN")
-TUSHARE_MIN_INTERVAL_SECONDS = os.getenv("TUSHARE_MIN_INTERVAL_SECONDS", "10")
+TUSHARE_MIN_INTERVAL_SECONDS = os.getenv("TUSHARE_MIN_INTERVAL_SECONDS", "0")
 
 # 检查 SendKey 是否已配置
 if not SERVERCHAN_SEND_KEY:
@@ -69,7 +69,7 @@ def get_tushare_min_interval_seconds() -> float:
         return max(0.0, float(TUSHARE_MIN_INTERVAL_SECONDS))
     except (TypeError, ValueError):
         logger.warning(
-            "Environment variable 'TUSHARE_MIN_INTERVAL_SECONDS' is invalid: %s. Falling back to 10.",
+            "Environment variable 'TUSHARE_MIN_INTERVAL_SECONDS' is invalid: %s. Falling back to 0.",
             TUSHARE_MIN_INTERVAL_SECONDS,
         )
-        return 10.0
+        return 0.0
