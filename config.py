@@ -24,6 +24,9 @@ VIDEO_DIRECTORY = os.getenv("VIDEO_DIRECTORY", "videos")
 # 在 Windows 本地开发时，可以设置环境变量 FFMPEG_PATH 指向具体的 .exe 文件
 FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
 
+# Tushare Token
+TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN")
+
 # 检查 SendKey 是否已配置
 if not SERVERCHAN_SEND_KEY:
     logger.error("Environment variable 'SERVERCHAN_SEND_KEY' is not set. Please set it in .env or your environment.")
@@ -52,3 +55,8 @@ def get_tencentcloud_cos_credentials() -> tuple[Optional[str], Optional[str], Op
 def get_tencentcloud_cos_region() -> str:
     """提供一个函数来获取腾讯云 COS 地域"""
     return TENCENTCLOUD_COS_REGION
+
+
+def get_tushare_token() -> Optional[str]:
+    """提供一个函数来获取 TUSHARE_TOKEN"""
+    return TUSHARE_TOKEN

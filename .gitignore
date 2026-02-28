@@ -259,4 +259,5 @@ cython_debug/
 *.mid
 *.midi
 .idea
+*.csv
 
