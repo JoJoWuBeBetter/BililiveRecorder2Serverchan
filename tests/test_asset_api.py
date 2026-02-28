@@ -66,8 +66,6 @@ def _rebuild_response() -> AssetSnapshotRebuildResponse:
         position_count=1,
         include_pricing=True,
     )
-
-
 def _raise_snapshot_miss(**kwargs):
     raise AssetDetailNotFoundError("snapshot missing")
 

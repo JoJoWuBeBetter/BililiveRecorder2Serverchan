@@ -9,11 +9,16 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
+from crud.account_snapshot_crud import (
+    get_latest_security_price_on_or_before,
+    replace_security_prices,
+)
 from crud.asset_crud import (
     get_trade_records_for_codes_on_or_before,
     has_settlement_records,
     list_records_on_or_before,
 )
+from models.account_snapshot import SecurityDailyPrice
 from models.settlement import SettlementRecord, SettlementTradeType
 from schemas.asset import AssetCashFlowItem, AssetCashFlowResponse, AssetDetailResponse, AssetPositionItem
 from services.simple_cache import SimpleTTLCache, app_cache
@@ -69,7 +74,8 @@ class AssetService:
             raise AssetDetailNotFoundError("目标日期及之前没有交割记录")
         logger.info("资产详情交割记录加载完成: target_date=%s, records=%s", resolved_target_date, len(records))
 
-        cash_balance = self._milli_to_decimal(int(records[-1].cash_balance_milli))
+        cash_balance_milli_by_record = self._build_cash_balance_milli_by_record(records)
+        cash_balance = self._milli_to_decimal(cash_balance_milli_by_record[records[-1].id])
         total_deposit, total_withdrawal, net_deposit = self._calculate_cash_flow_metrics(records)
         position_snapshots = self._extract_position_snapshots(records)
 
@@ -110,7 +116,11 @@ class AssetService:
             quantity = int(snapshot.share_balance)
             state = cost_states.get(snapshot.security_code, CostBasisState())
             cost_price, cost_amount = self._resolve_cost_values(state, quantity)
-            close_price, price_trade_date = self._fetch_close_price(snapshot.security_code, resolved_target_date)
+            close_price, price_trade_date = self._fetch_close_price(
+                db=db,
+                security_code=snapshot.security_code,
+                target_date=resolved_target_date,
+            )
             market_value = close_price * Decimal(quantity)
             unrealized_pnl = market_value - cost_amount
             unrealized_pnl_pct = None
@@ -182,6 +192,7 @@ class AssetService:
         logger.info("开始查询资金流水: target_date=%s, limit=%s", resolved_target_date, normalized_limit)
 
         records = list_records_on_or_before(db, resolved_target_date)
+        cash_balance_milli_by_record = self._build_cash_balance_milli_by_record(records)
         cash_flow_records = [
             record
             for record in reversed(records)
@@ -197,7 +208,7 @@ class AssetService:
                 occur_time=record.occur_time,
                 trade_type=record.trade_type,
                 amount=record.amount,
-                cash_balance=record.cash_balance,
+                cash_balance=self._milli_to_decimal(cash_balance_milli_by_record[record.id]),
             )
             for record in cash_flow_records[:normalized_limit]
         ]
@@ -281,11 +292,39 @@ class AssetService:
 
         return states
 
-    def _fetch_close_price(self, security_code: str, target_date: date) -> tuple[Decimal, date]:
+    @staticmethod
+    def _build_cash_balance_milli_by_record(records: list[SettlementRecord]) -> dict[int, int]:
+        if not records:
+            return {}
+
+        current_cash_balance_milli = (
+            int(records[0].cash_balance_milli) - int(records[0].amount_milli)
+        )
+        balances: dict[int, int] = {}
+        for record in records:
+            current_cash_balance_milli += int(record.amount_milli)
+            balances[record.id] = current_cash_balance_milli
+        return balances
+
+    def _fetch_close_price(self, db: Session, security_code: str, target_date: date) -> tuple[Decimal, date]:
         pricing_trade_date = self.trade_calendar_service.get_effective_trade_date(
             target_date,
             now=self._now_shanghai(),
         )
+        local_price = get_latest_security_price_on_or_before(
+            db=db,
+            security_code=security_code,
+            target_date=pricing_trade_date,
+        )
+        if local_price is not None:
+            logger.info(
+                "本地价格命中: security_code=%s, trade_date=%s, close=%s",
+                security_code,
+                local_price.trade_date,
+                self._milli_to_decimal(int(local_price.close_milli)),
+            )
+            return self._milli_to_decimal(int(local_price.close_milli)), local_price.trade_date
+
         logger.info(
             "开始估值证券: security_code=%s, target_date=%s, pricing_trade_date=%s",
             security_code,
@@ -314,6 +353,16 @@ class AssetService:
         if selected_bar is None:
             raise StockHistoryFetchError(f"{security_code} 在 {pricing_trade_date} 没有匹配的估值行情")
 
+        self._store_security_price(
+            db=db,
+            security_code=security_code,
+            trade_date=selected_bar.trade_date,
+            ts_code=selected_bar.ts_code,
+            close_price=Decimal(str(selected_bar.close)),
+            open_price=Decimal(str(selected_bar.open)),
+            high_price=Decimal(str(selected_bar.high)),
+            low_price=Decimal(str(selected_bar.low)),
+        )
         logger.info(
             "证券估值完成: security_code=%s, pricing_trade_date=%s, close=%s",
             security_code,
@@ -321,6 +370,37 @@ class AssetService:
             selected_bar.close,
         )
         return Decimal(str(selected_bar.close)), selected_bar.trade_date
+
+    def _store_security_price(
+        self,
+        db: Session,
+        security_code: str,
+        trade_date: date,
+        ts_code: str,
+        close_price: Decimal,
+        open_price: Decimal,
+        high_price: Decimal,
+        low_price: Decimal,
+    ) -> None:
+        row = SecurityDailyPrice(
+            security_code=security_code,
+            trade_date=trade_date,
+            ts_code=ts_code,
+            asset_type=None,
+            close_milli=self._decimal_to_milli(close_price),
+            open_milli=self._decimal_to_milli(open_price),
+            high_milli=self._decimal_to_milli(high_price),
+            low_milli=self._decimal_to_milli(low_price),
+            source="tushare",
+        )
+        replace_security_prices(
+            db=db,
+            security_code=security_code,
+            start_date=trade_date,
+            end_date=trade_date,
+            rows=[row],
+        )
+        logger.info("本地价格回填完成: security_code=%s, trade_date=%s", security_code, trade_date)
 
     @staticmethod
     def _resolve_cost_values(state: CostBasisState, final_shares: int) -> tuple[Decimal, Decimal]:
@@ -380,6 +460,10 @@ class AssetService:
     @staticmethod
     def _milli_to_decimal(value: int) -> Decimal:
         return Decimal(value) / Decimal("1000")
+
+    @staticmethod
+    def _decimal_to_milli(value: Decimal) -> int:
+        return int((value * Decimal("1000")).quantize(Decimal("1")))
 
 
 asset_service = AssetService()

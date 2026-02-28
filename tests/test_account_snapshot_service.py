@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from database import Base
+from models.account_snapshot import SecurityDailyPrice
 from models.settlement import SettlementRecord
 from schemas.stock import AdjustmentType, StockHistoryQuery
 from services.account_snapshot_service import AccountSnapshotService
@@ -212,6 +213,146 @@ def test_account_snapshot_service_can_rebuild_without_pricing():
     assert len(stock_service.calls) == 0
     assert snapshot_detail.total_assets == Decimal("5000")
     assert snapshot_detail.positions == []
+
+
+def test_account_snapshot_service_uses_cost_as_fallback_total_assets_without_pricing():
+    db = _create_db()
+    db.add_all(
+        [
+            _record(
+                occur_date=date(2025, 8, 6),
+                occur_time="09:00:00",
+                trade_type="银行转证券",
+                amount="5000",
+                cash_balance="5000",
+            ),
+            _record(
+                occur_date=date(2025, 8, 6),
+                occur_time="09:30:00",
+                security_code="000597",
+                security_name="东北制药",
+                trade_type="证券买入",
+                volume=200,
+                amount="-1000",
+                share_balance=200,
+                cash_balance="4000",
+                market="深市A股",
+            ),
+        ]
+    )
+    db.commit()
+
+    service = AccountSnapshotService(
+        stock_history_service=FakeStockHistoryService(responses={}),
+        trade_calendar_service_instance=FakeTradeCalendarService(trade_days=[date(2025, 8, 6)]),
+    )
+
+    try:
+        service.rebuild_snapshots(db=db, mode="full", include_pricing=False)
+        snapshot_detail = service.get_snapshot_detail(db=db, snapshot_date=date(2025, 8, 6))
+    finally:
+        db.close()
+
+    assert snapshot_detail.cash_balance == Decimal("4000")
+    assert snapshot_detail.positions_market_value == Decimal("1000")
+    assert snapshot_detail.total_assets == Decimal("5000")
+
+
+def test_account_snapshot_service_backfills_snapshot_prices_from_local_price_store():
+    db = _create_db()
+    db.add_all(
+        [
+            _record(
+                occur_date=date(2025, 8, 6),
+                occur_time="09:00:00",
+                trade_type="银行转证券",
+                amount="5000",
+                cash_balance="5000",
+            ),
+            _record(
+                occur_date=date(2025, 8, 6),
+                occur_time="09:30:00",
+                security_code="000597",
+                security_name="东北制药",
+                trade_type="证券买入",
+                volume=200,
+                amount="-1000",
+                share_balance=200,
+                cash_balance="4000",
+                market="深市A股",
+            ),
+            SecurityDailyPrice(
+                security_code="000597",
+                trade_date=date(2025, 8, 6),
+                ts_code="000597.SZ",
+                close_milli=5800,
+                open_milli=5800,
+                high_milli=5800,
+                low_milli=5800,
+                source="tushare",
+            ),
+        ]
+    )
+    db.commit()
+
+    service = AccountSnapshotService(
+        stock_history_service=FakeStockHistoryService(responses={}),
+        trade_calendar_service_instance=FakeTradeCalendarService(trade_days=[date(2025, 8, 6)]),
+    )
+
+    try:
+        service.rebuild_snapshots(db=db, mode="full", include_pricing=False)
+        snapshot_detail = service.get_snapshot_detail(db=db, snapshot_date=date(2025, 8, 6))
+    finally:
+        db.close()
+
+    assert snapshot_detail.positions[0].close_price == Decimal("5.8")
+    assert snapshot_detail.positions[0].market_value == Decimal("1160")
+    assert snapshot_detail.positions[0].unrealized_pnl == Decimal("160")
+    assert snapshot_detail.positions_market_value == Decimal("1160")
+    assert snapshot_detail.total_assets == Decimal("5160")
+
+
+def test_account_snapshot_service_derives_cash_balance_from_amounts_when_balance_field_lags():
+    db = _create_db()
+    db.add_all(
+        [
+            _record(
+                occur_date=date(2025, 8, 6),
+                occur_time="09:00:00",
+                trade_type="银行转证券",
+                amount="5000",
+                cash_balance="5000",
+            ),
+            _record(
+                occur_date=date(2025, 8, 6),
+                occur_time="13:00:00",
+                security_code="000597",
+                security_name="东北制药",
+                trade_type="证券买入",
+                volume=200,
+                amount="-1223",
+                share_balance=200,
+                cash_balance="5000",
+                market="深市A股",
+            ),
+        ]
+    )
+    db.commit()
+
+    trade_calendar_service = FakeTradeCalendarService(trade_days=[date(2025, 8, 6)])
+    service = AccountSnapshotService(
+        stock_history_service=FakeStockHistoryService(responses={}),
+        trade_calendar_service_instance=trade_calendar_service,
+    )
+
+    try:
+        service.rebuild_snapshots(db=db, mode="full", include_pricing=False)
+        snapshot_detail = service.get_snapshot_detail(db=db, snapshot_date=date(2025, 8, 6))
+    finally:
+        db.close()
+
+    assert snapshot_detail.cash_balance == Decimal("3777")
 
 
 def test_account_snapshot_service_sorts_trade_days_before_building_snapshots():

@@ -12,6 +12,7 @@ from crud.account_snapshot_crud import (
     delete_snapshots_from_date,
     get_latest_snapshot_before,
     get_latest_snapshot_date,
+    get_latest_security_price_on_or_before,
     get_security_prices_in_range,
     get_snapshot_on_date,
     get_snapshot_positions_map,
@@ -24,6 +25,7 @@ from models.account_snapshot import AccountDailyPosition, AccountDailySnapshot, 
 from models.settlement import SettlementRecord, SettlementTradeType
 from schemas.asset import AssetDetailResponse, AssetPositionItem, AssetSnapshotRebuildResponse
 from services.asset_service import AssetDetailNotFoundError
+from services.simple_cache import app_cache
 from services.stock_history_service import StockHistoryService
 from services.trade_calendar_service import TradeCalendarService, trade_calendar_service
 
@@ -159,7 +161,49 @@ class AccountSnapshotService:
             raise AssetDetailNotFoundError("该日期没有已持久化的账户快照")
 
         positions = []
+        positions_market_value_milli = 0
+        latest_price_trade_date: Optional[date] = snapshot.pricing_trade_date
         for row in get_snapshot_positions_on_date(db, snapshot_date):
+            close_price_milli = row.close_price_milli
+            market_value_milli = row.market_value_milli
+            unrealized_pnl_milli = row.unrealized_pnl_milli
+            unrealized_pnl_pct_bp = row.unrealized_pnl_pct_bp
+            price_trade_date = row.price_trade_date or snapshot.snapshot_date
+
+            if close_price_milli is None or market_value_milli is None:
+                price_row = get_latest_security_price_on_or_before(
+                    db=db,
+                    security_code=row.security_code,
+                    target_date=snapshot.snapshot_date,
+                )
+                if price_row is not None:
+                    close_price_milli = int(price_row.close_milli)
+                    market_value_milli = close_price_milli * int(row.quantity)
+                    unrealized_pnl_milli = market_value_milli - int(row.cost_amount_milli)
+                    if int(row.cost_amount_milli) > 0:
+                        unrealized_pnl_pct_bp = int(
+                            (
+                                Decimal(unrealized_pnl_milli)
+                                / Decimal(row.cost_amount_milli)
+                                * Decimal("10000")
+                            ).quantize(Decimal("1"))
+                        )
+                    else:
+                        unrealized_pnl_pct_bp = None
+                    price_trade_date = price_row.trade_date
+                else:
+                    market_value_milli = int(row.cost_amount_milli)
+                    unrealized_pnl_milli = 0
+                    if int(row.cost_amount_milli) > 0 and int(row.quantity) > 0:
+                        close_price_milli = int(int(row.cost_amount_milli) / int(row.quantity))
+                        unrealized_pnl_pct_bp = 0
+                    else:
+                        close_price_milli = 0
+                        unrealized_pnl_pct_bp = None
+
+            positions_market_value_milli += int(market_value_milli or 0)
+            if latest_price_trade_date is None or price_trade_date > latest_price_trade_date:
+                latest_price_trade_date = price_trade_date
             positions.append(
                 AssetPositionItem(
                     security_code=row.security_code,
@@ -168,25 +212,26 @@ class AccountSnapshotService:
                     quantity=row.quantity,
                     cost_price=self._milli_to_decimal(row.cost_price_milli),
                     cost_amount=self._milli_to_decimal(row.cost_amount_milli),
-                    close_price=self._milli_to_decimal(row.close_price_milli or 0),
-                    price_trade_date=row.price_trade_date or snapshot.snapshot_date,
-                    market_value=self._milli_to_decimal(row.market_value_milli or 0),
-                    unrealized_pnl=self._milli_to_decimal(row.unrealized_pnl_milli or 0),
-                    unrealized_pnl_pct=self._bp_to_ratio(row.unrealized_pnl_pct_bp),
+                    close_price=self._milli_to_decimal(close_price_milli or 0),
+                    price_trade_date=price_trade_date,
+                    market_value=self._milli_to_decimal(market_value_milli or 0),
+                    unrealized_pnl=self._milli_to_decimal(unrealized_pnl_milli or 0),
+                    unrealized_pnl_pct=self._bp_to_ratio(unrealized_pnl_pct_bp),
                 )
             )
 
         positions.sort(key=lambda item: item.market_value, reverse=True)
+        total_assets_milli = int(snapshot.cash_balance_milli) + positions_market_value_milli
 
         return AssetDetailResponse(
             target_date=snapshot.snapshot_date,
-            pricing_trade_date=snapshot.pricing_trade_date or snapshot.snapshot_date,
+            pricing_trade_date=latest_price_trade_date or snapshot.snapshot_date,
             cash_balance=self._milli_to_decimal(snapshot.cash_balance_milli),
             total_deposit=self._milli_to_decimal(snapshot.total_deposit_milli),
             total_withdrawal=self._milli_to_decimal(snapshot.total_withdrawal_milli),
             net_deposit=self._milli_to_decimal(snapshot.net_deposit_milli),
-            positions_market_value=self._milli_to_decimal(snapshot.positions_market_value_milli or 0),
-            total_assets=self._milli_to_decimal(snapshot.total_assets_milli or snapshot.cash_balance_milli),
+            positions_market_value=self._milli_to_decimal(positions_market_value_milli),
+            total_assets=self._milli_to_decimal(total_assets_milli),
             position_count=snapshot.position_count,
             positions=positions,
         )
@@ -229,8 +274,13 @@ class AccountSnapshotService:
     def _load_seed_state(self, db: Session, rebuild_from_date: date) -> dict[str, object]:
         previous_snapshot = get_latest_snapshot_before(db, rebuild_from_date)
         if previous_snapshot is None:
+            opening_cash_balance_milli = 0
+            if first_record := self._get_first_settlement_record(db):
+                opening_cash_balance_milli = (
+                    int(first_record.cash_balance_milli) - int(first_record.amount_milli)
+                )
             return {
-                "cash_balance_milli": 0,
+                "cash_balance_milli": opening_cash_balance_milli,
                 "total_deposit_milli": 0,
                 "total_withdrawal_milli": 0,
                 "positions": {},
@@ -274,7 +324,7 @@ class AccountSnapshotService:
         for trade_day in ordered_trade_days:
             while record_index < len(settlement_records) and settlement_records[record_index].occur_date <= trade_day:
                 record = settlement_records[record_index]
-                cash_balance_milli = int(record.cash_balance_milli)
+                cash_balance_milli += int(record.amount_milli)
 
                 if record.trade_type == SettlementTradeType.BANK_TO_SECURITY.value:
                     total_deposit_milli += max(int(record.amount_milli), 0)
@@ -308,6 +358,18 @@ class AccountSnapshotService:
 
             daily_positions.sort(key=lambda item: item.security_code)
             net_deposit_milli = total_deposit_milli - total_withdrawal_milli
+            estimated_positions_value_milli = positions_cost_milli
+            estimated_total_assets_milli = cash_balance_milli + estimated_positions_value_milli
+            estimated_net_profit_milli = estimated_total_assets_milli - net_deposit_milli
+            estimated_return_rate_bp = None
+            if net_deposit_milli > 0:
+                estimated_return_rate_bp = int(
+                    (
+                        Decimal(estimated_net_profit_milli)
+                        / Decimal(net_deposit_milli)
+                        * Decimal("10000")
+                    ).quantize(Decimal("1"))
+                )
             snapshots[trade_day] = AccountDailySnapshot(
                 snapshot_date=trade_day,
                 is_trade_day=True,
@@ -316,11 +378,27 @@ class AccountSnapshotService:
                 total_withdrawal_milli=total_withdrawal_milli,
                 net_deposit_milli=net_deposit_milli,
                 positions_cost_milli=positions_cost_milli,
+                positions_market_value_milli=estimated_positions_value_milli,
+                total_assets_milli=estimated_total_assets_milli,
+                net_profit_milli=estimated_net_profit_milli,
+                return_rate_bp=estimated_return_rate_bp,
                 position_count=len(daily_positions),
             )
             positions_by_date[trade_day] = daily_positions
 
         return snapshots, positions_by_date
+
+    @staticmethod
+    def _get_first_settlement_record(db: Session) -> Optional[SettlementRecord]:
+        return (
+            db.query(SettlementRecord)
+            .order_by(
+                SettlementRecord.occur_date.asc(),
+                SettlementRecord.occur_time.asc(),
+                SettlementRecord.id.asc(),
+            )
+            .first()
+        )
 
     def _apply_position_record(self, positions: dict[str, PositionState], record: SettlementRecord) -> None:
         if not record.security_code or not self._is_a_share_code(record.security_code):

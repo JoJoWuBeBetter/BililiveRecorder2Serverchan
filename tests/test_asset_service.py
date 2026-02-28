@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from database import Base
+from models.account_snapshot import SecurityDailyPrice
 from models.settlement import SettlementRecord
 from services.asset_service import AssetDetailNotFoundError, AssetService
 from services.simple_cache import SimpleTTLCache
@@ -207,6 +208,58 @@ def test_asset_service_returns_position_detail_for_historical_day():
     assert result.positions[0].unrealized_pnl == Decimal("77.0")
 
 
+def test_asset_service_derives_cash_balance_from_amounts_instead_of_stale_cash_balance_field():
+    db = _create_db()
+    db.add_all(
+        [
+            _record(
+                occur_date=date(2025, 8, 6),
+                occur_time="09:00:00",
+                trade_type="银行转证券",
+                amount="5000",
+                cash_balance="5000",
+            ),
+            _record(
+                occur_date=date(2025, 8, 6),
+                occur_time="13:00:00",
+                security_code="000597",
+                security_name="东北制药",
+                trade_type="证券买入",
+                volume=200,
+                amount="-1223",
+                share_balance=200,
+                cash_balance="5000",
+                market="深市A股",
+            ),
+            _record(
+                occur_date=date(2025, 8, 6),
+                occur_time="14:00:00",
+                trade_type="证券转银行",
+                amount="-500",
+                cash_balance="5000",
+            ),
+        ]
+    )
+    db.commit()
+
+    service = AssetService(
+        stock_history_service=FakeStockHistoryService(
+            responses={"000597": _history("000597.SZ", [(date(2025, 8, 6), 6.5)])}
+        ),
+        trade_calendar_service_instance=FakeTradeCalendarService(effective_trade_date=date(2025, 8, 6)),
+        cache=SimpleTTLCache(),
+    )
+
+    try:
+        result = service.get_asset_detail(db=db, target_date=date(2025, 8, 6))
+        cash_flows = service.get_cash_flows(db=db, target_date=date(2025, 8, 6), limit=10)
+    finally:
+        db.close()
+
+    assert result.cash_balance == Decimal("3277")
+    assert cash_flows.items[0].cash_balance == Decimal("3277")
+
+
 def test_asset_service_rolls_back_to_previous_trade_day_for_weekend():
     db = _create_db()
     db.add(
@@ -279,6 +332,95 @@ def test_asset_service_uses_previous_close_before_market_close(monkeypatch):
 
     assert result.positions[0].price_trade_date == date(2025, 8, 7)
     assert result.positions[0].close_price == Decimal("5.5")
+
+
+def test_asset_service_prefers_local_security_price_before_querying_tushare():
+    db = _create_db()
+    db.add_all(
+        [
+            _record(
+                occur_date=date(2025, 8, 8),
+                occur_time="09:30:00",
+                security_code="000597",
+                security_name="东北制药",
+                trade_type="证券买入",
+                volume=100,
+                amount="-500",
+                share_balance=100,
+                cash_balance="500",
+                market="深市A股",
+            ),
+            SecurityDailyPrice(
+                security_code="000597",
+                trade_date=date(2025, 8, 8),
+                ts_code="000597.SZ",
+                close_milli=5600,
+                open_milli=5600,
+                high_milli=5600,
+                low_milli=5600,
+                source="tushare",
+            ),
+        ]
+    )
+    db.commit()
+
+    stock_service = FakeStockHistoryService(
+        responses={"000597": _history("000597.SZ", [(date(2025, 8, 8), 9.9)])}
+    )
+    service = AssetService(
+        stock_history_service=stock_service,
+        trade_calendar_service_instance=FakeTradeCalendarService(effective_trade_date=date(2025, 8, 8)),
+        cache=SimpleTTLCache(),
+    )
+
+    try:
+        result = service.get_asset_detail(db=db, target_date=date(2025, 8, 8))
+    finally:
+        db.close()
+
+    assert result.positions[0].close_price == Decimal("5.6")
+    assert len(stock_service.calls) == 0
+
+
+def test_asset_service_persists_security_price_after_tushare_fetch():
+    db = _create_db()
+    db.add(
+        _record(
+            occur_date=date(2025, 8, 8),
+            occur_time="09:30:00",
+            security_code="000597",
+            security_name="东北制药",
+            trade_type="证券买入",
+            volume=100,
+            amount="-500",
+            share_balance=100,
+            cash_balance="500",
+            market="深市A股",
+        )
+    )
+    db.commit()
+
+    stock_service = FakeStockHistoryService(
+        responses={"000597": _history("000597.SZ", [(date(2025, 8, 8), 5.6)])}
+    )
+    service = AssetService(
+        stock_history_service=stock_service,
+        trade_calendar_service_instance=FakeTradeCalendarService(effective_trade_date=date(2025, 8, 8)),
+        cache=SimpleTTLCache(),
+    )
+
+    try:
+        service.get_asset_detail(db=db, target_date=date(2025, 8, 8))
+        stored = (
+            db.query(SecurityDailyPrice)
+            .filter(SecurityDailyPrice.security_code == "000597")
+            .filter(SecurityDailyPrice.trade_date == date(2025, 8, 8))
+            .one()
+        )
+    finally:
+        db.close()
+
+    assert stored.close_milli == 5600
 
 
 def test_asset_service_handles_partial_sell_with_diluted_cost():

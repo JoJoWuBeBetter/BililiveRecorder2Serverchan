@@ -97,6 +97,20 @@ def get_security_prices_in_range(
     )
 
 
+def get_latest_security_price_on_or_before(
+    db: Session,
+    security_code: str,
+    target_date: date,
+) -> Optional[SecurityDailyPrice]:
+    return (
+        db.query(SecurityDailyPrice)
+        .filter(SecurityDailyPrice.security_code == security_code)
+        .filter(SecurityDailyPrice.trade_date <= target_date)
+        .order_by(SecurityDailyPrice.trade_date.desc())
+        .first()
+    )
+
+
 def replace_snapshots(
     db: Session,
     snapshots: list[AccountDailySnapshot],
