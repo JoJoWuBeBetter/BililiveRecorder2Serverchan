@@ -26,6 +26,7 @@ FFMPEG_PATH = os.getenv("FFMPEG_PATH", "ffmpeg")
 
 # Tushare Token
 TUSHARE_TOKEN = os.getenv("TUSHARE_TOKEN")
+TUSHARE_MIN_INTERVAL_SECONDS = os.getenv("TUSHARE_MIN_INTERVAL_SECONDS", "10")
 
 # 检查 SendKey 是否已配置
 if not SERVERCHAN_SEND_KEY:
@@ -60,3 +61,15 @@ def get_tencentcloud_cos_region() -> str:
 def get_tushare_token() -> Optional[str]:
     """提供一个函数来获取 TUSHARE_TOKEN"""
     return TUSHARE_TOKEN
+
+
+def get_tushare_min_interval_seconds() -> float:
+    """提供一个函数来获取 Tushare 调用最小间隔秒数。"""
+    try:
+        return max(0.0, float(TUSHARE_MIN_INTERVAL_SECONDS))
+    except (TypeError, ValueError):
+        logger.warning(
+            "Environment variable 'TUSHARE_MIN_INTERVAL_SECONDS' is invalid: %s. Falling back to 10.",
+            TUSHARE_MIN_INTERVAL_SECONDS,
+        )
+        return 10.0

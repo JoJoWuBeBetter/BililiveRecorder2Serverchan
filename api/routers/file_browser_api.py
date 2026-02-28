@@ -57,3 +57,10 @@ async def tasks_console(request: Request):
     """任务控制台页面。"""
 
     return templates.TemplateResponse("tasks.html", {"request": request})
+
+
+@router.get("/browser/assets", response_class=HTMLResponse)
+async def assets_console(request: Request):
+    """账户控制台页面。"""
+
+    return templates.TemplateResponse("assets.html", {"request": request})

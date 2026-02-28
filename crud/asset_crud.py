@@ -2,7 +2,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from models.settlement import SettlementRecord
+from models.settlement import SettlementRecord, SettlementTradeType
 
 
 def has_settlement_records(db: Session) -> bool:
@@ -34,7 +34,7 @@ def get_trade_records_for_codes_on_or_before(
         db.query(SettlementRecord)
         .filter(SettlementRecord.occur_date <= target_date)
         .filter(SettlementRecord.security_code.in_(security_codes))
-        .filter(SettlementRecord.trade_type.in_(("证券买入", "证券卖出")))
+        .filter(SettlementRecord.trade_type.in_(SettlementTradeType.trading_values()))
         .order_by(
             SettlementRecord.occur_date.asc(),
             SettlementRecord.occur_time.asc(),

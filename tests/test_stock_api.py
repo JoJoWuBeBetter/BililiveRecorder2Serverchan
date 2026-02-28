@@ -5,6 +5,7 @@ from fastapi import HTTPException
 
 from api.routers import stock_api
 from schemas.stock import AdjustmentType, StockDailyBar, StockHistoryQuery, StockHistoryResponse
+from services.simple_cache import SimpleTTLCache
 from services.stock_history_service import (
     StockHistoryConfigError,
     StockHistoryFetchError,
@@ -46,7 +47,7 @@ class FakeTushareModule:
 
 
 def test_stock_history_service_none_adjust_returns_sorted_items(monkeypatch):
-    service = StockHistoryService()
+    service = StockHistoryService(cache=SimpleTTLCache())
     fake_ts = FakeTushareModule(
         result=FakeDataFrame(
             [
@@ -106,7 +107,7 @@ def test_stock_history_service_none_adjust_returns_sorted_items(monkeypatch):
 
 
 def test_stock_history_service_trade_date_maps_to_single_day(monkeypatch):
-    service = StockHistoryService()
+    service = StockHistoryService(cache=SimpleTTLCache())
     fake_ts = FakeTushareModule(result=FakeDataFrame([]))
 
     monkeypatch.setattr("services.stock_history_service.get_tushare_token", lambda: "token")
@@ -125,7 +126,7 @@ def test_stock_history_service_trade_date_maps_to_single_day(monkeypatch):
 
 
 def test_stock_history_service_auto_appends_exchange_suffix(monkeypatch):
-    service = StockHistoryService()
+    service = StockHistoryService(cache=SimpleTTLCache())
     fake_ts = FakeTushareModule(result=FakeDataFrame([]))
 
     monkeypatch.setattr("services.stock_history_service.get_tushare_token", lambda: "token")
@@ -141,7 +142,7 @@ def test_stock_history_service_auto_appends_exchange_suffix(monkeypatch):
 
 
 def test_stock_history_service_falls_back_to_fund_asset(monkeypatch):
-    service = StockHistoryService()
+    service = StockHistoryService(cache=SimpleTTLCache())
     fake_ts = FakeTushareModule(
         result={
             "FD": FakeDataFrame(
@@ -179,7 +180,7 @@ def test_stock_history_service_falls_back_to_fund_asset(monkeypatch):
 
 
 def test_stock_history_service_raises_config_error_without_token(monkeypatch):
-    service = StockHistoryService()
+    service = StockHistoryService(cache=SimpleTTLCache())
     monkeypatch.setattr("services.stock_history_service.get_tushare_token", lambda: None)
 
     try:
@@ -191,7 +192,7 @@ def test_stock_history_service_raises_config_error_without_token(monkeypatch):
 
 
 def test_stock_history_service_maps_permission_error(monkeypatch):
-    service = StockHistoryService()
+    service = StockHistoryService(cache=SimpleTTLCache())
     fake_ts = FakeTushareModule(error=Exception("权限不足"))
 
     monkeypatch.setattr("services.stock_history_service.get_tushare_token", lambda: "token")
@@ -206,7 +207,7 @@ def test_stock_history_service_maps_permission_error(monkeypatch):
 
 
 def test_stock_history_service_maps_fetch_error(monkeypatch):
-    service = StockHistoryService()
+    service = StockHistoryService(cache=SimpleTTLCache())
     fake_ts = FakeTushareModule(error=Exception("network failed"))
 
     monkeypatch.setattr("services.stock_history_service.get_tushare_token", lambda: "token")
@@ -301,3 +302,35 @@ def test_stock_api_returns_service_result(monkeypatch):
     )
 
     assert result == expected
+
+
+def test_stock_history_service_uses_cache_for_same_query(monkeypatch):
+    service = StockHistoryService(cache=SimpleTTLCache())
+    fake_ts = FakeTushareModule(
+        result=FakeDataFrame(
+            [
+                {
+                    "ts_code": "000001.SZ",
+                    "trade_date": "20240105",
+                    "open": 10,
+                    "high": 10,
+                    "low": 10,
+                    "close": 10,
+                    "pre_close": 10,
+                    "change": 0,
+                    "pct_chg": 0,
+                    "vol": 1,
+                    "amount": 1,
+                }
+            ]
+        )
+    )
+
+    monkeypatch.setattr("services.stock_history_service.get_tushare_token", lambda: "token")
+    monkeypatch.setattr(service, "_get_tushare_module", lambda: fake_ts)
+
+    first = service.get_stock_history(ts_code="000001.SZ", trade_date=date(2024, 1, 5))
+    second = service.get_stock_history(ts_code="000001.SZ", trade_date=date(2024, 1, 5))
+
+    assert first == second
+    assert len(fake_ts.calls) == 1

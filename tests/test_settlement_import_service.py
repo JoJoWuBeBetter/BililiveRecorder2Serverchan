@@ -1,9 +1,12 @@
+from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from database import Base
+from models.settlement import SettlementRecord
+from services.simple_cache import app_cache
 from services.settlement_import_service import (
     SettlementImportError,
     SettlementImportService,
@@ -29,6 +32,7 @@ def _build_csv(rows: list[str], header: Optional[str] = None) -> bytes:
 def test_import_csv_inserts_records_and_deduplicates_within_file():
     service = SettlementImportService()
     db = _create_db()
+    app_cache.clear()
     file_bytes = _build_csv(
         [
             '2025-08-06,2025-08-06,09:29:53,= "000597      ",东北制药,证券买入,200,6.090,1218.000,-1223.000,4.930,0.07,0.00,0.00,200,3777.00,0105000000894747,= "0909655210    ",= "0100083586    ",深市A股,人民币,',
@@ -50,6 +54,7 @@ def test_import_csv_inserts_records_and_deduplicates_within_file():
 def test_import_csv_skips_existing_records():
     service = SettlementImportService()
     db = _create_db()
+    app_cache.clear()
     file_bytes = _build_csv(
         [
             '2025-08-06,2025-08-06,09:29:53,= "000597      ",东北制药,证券买入,200,6.090,1218.000,-1223.000,4.930,0.07,0.00,0.00,200,3777.00,0105000000894747,= "0909655210    ",= "0100083586    ",深市A股,人民币,',
@@ -101,6 +106,29 @@ def test_normalize_row_cleans_excel_style_text():
     assert normalized["serial_no"] == "0100083586"
 
 
+def test_import_csv_stores_money_as_milli_integer():
+    service = SettlementImportService()
+    db = _create_db()
+    app_cache.clear()
+    file_bytes = _build_csv(
+        [
+            '2025-08-06,2025-08-06,09:29:53,= "000597      ",东北制药,证券买入,200,6.090,1218.000,-1223.000,4.930,0.07,0.00,0.00,200,3777.00,0105000000894747,= "0909655210    ",= "0100083586    ",深市A股,人民币,',
+        ]
+    )
+
+    try:
+        service.import_csv(db, file_bytes, "jgd.csv")
+        record = db.query(SettlementRecord).one()
+    finally:
+        db.close()
+
+    assert record.turnover_milli == 1218000
+    assert record.amount_milli == -1223000
+    assert record.cash_balance_milli == 3777000
+    assert record.turnover ==  Decimal("1218")
+    assert record.amount == Decimal("-1223")
+
+
 def test_parse_csv_rejects_invalid_header():
     service = SettlementImportService()
     file_bytes = _build_csv(
@@ -119,6 +147,7 @@ def test_parse_csv_rejects_invalid_header():
 def test_import_csv_rejects_invalid_decimal_value():
     service = SettlementImportService()
     db = _create_db()
+    app_cache.clear()
     file_bytes = _build_csv(
         [
             '2025-08-06,2025-08-06,09:29:53,--,--,银行转证券,0,NOT_A_NUMBER,0,5000,0,0,0,0,0,5000,0,--,--,--,人民币,',
@@ -133,3 +162,41 @@ def test_import_csv_rejects_invalid_decimal_value():
         raise AssertionError("Expected SettlementImportError")
     finally:
         db.close()
+
+
+def test_import_csv_clears_asset_detail_cache_when_new_records_inserted():
+    service = SettlementImportService()
+    db = _create_db()
+    app_cache.clear()
+    app_cache.set("asset_detail:2025-08-06", {"cached": True}, ttl_seconds=300)
+    file_bytes = _build_csv(
+        [
+            '2025-08-06,2025-08-06,09:29:53,= "000597      ",东北制药,证券买入,200,6.090,1218.000,-1223.000,4.930,0.07,0.00,0.00,200,3777.00,0105000000894747,= "0909655210    ",= "0100083586    ",深市A股,人民币,',
+        ]
+    )
+
+    try:
+        service.import_csv(db, file_bytes, "jgd.csv")
+    finally:
+        db.close()
+
+    assert app_cache.get("asset_detail:2025-08-06") is None
+
+
+def test_import_csv_clears_asset_cash_flows_cache_when_new_records_inserted():
+    service = SettlementImportService()
+    db = _create_db()
+    app_cache.clear()
+    app_cache.set("asset_cash_flows:2025-08-06:10", {"cached": True}, ttl_seconds=300)
+    file_bytes = _build_csv(
+        [
+            '2025-08-06,2025-08-06,09:29:53,= "000597      ",东北制药,证券买入,200,6.090,1218.000,-1223.000,4.930,0.07,0.00,0.00,200,3777.00,0105000000894747,= "0909655210    ",= "0100083586    ",深市A股,人民币,',
+        ]
+    )
+
+    try:
+        service.import_csv(db, file_bytes, "jgd.csv")
+    finally:
+        db.close()
+
+    assert app_cache.get("asset_cash_flows:2025-08-06:10") is None

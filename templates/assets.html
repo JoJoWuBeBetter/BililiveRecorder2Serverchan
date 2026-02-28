@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>账户控制台 | ASSET OPS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=WDXL+Lubrifont+SC&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&family=Noto+Sans+SC:wght@300;400;500;700&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --hex-bg: #050000;
+            --hex-panel: rgba(20, 5, 5, 0.92);
+            --primary-color: #ff3333;
+            --secondary-color: #800000;
+            --accent-orange: #ff9900;
+            --text-main: #ffeaea;
+            --text-dim: #b35959;
+            --grid-color: rgba(255, 51, 51, 0.15);
+            --glow-strong: 0 0 10px rgba(255, 51, 51, 0.8), 0 0 20px rgba(255, 51, 51, 0.4);
+            --glow-text: 0 0 2px rgba(255, 51, 51, 0.6);
+            --glow-border: 0 0 8px rgba(255, 51, 51, 0.5);
+            --font-display: "WDXL Lubrifont SC", "ZCOOL QingKe HuangYou", cursive;
+            --font-ui: "WDXL Lubrifont SC", "Rajdhani", sans-serif;
+            --font-body: "WDXL Lubrifont SC", "Noto Sans SC", sans-serif;
+            --font-mono: "Share Tech Mono", "JetBrains Mono", monospace;
+        }
+
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #050000; border-left: 1px solid var(--text-dim); }
+        ::-webkit-scrollbar-thumb { background: var(--primary-color); border: 1px solid #000; }
+        ::-webkit-scrollbar-thumb:hover { background: #fff; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            overflow: hidden;
+            font-family: var(--font-body);
+            color: var(--text-main);
+            background-color: var(--hex-bg);
+            background-image:
+                radial-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(rgba(255, 51, 51, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 51, 51, 0.05) 1px, transparent 1px);
+            background-size: 40px 40px, 20px 20px, 20px 20px;
+            text-shadow: 0 0 2px rgba(255, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(255, 0, 0, 0.01), rgba(255, 0, 0, 0.04));
+            z-index: 999;
+            background-size: 100% 3px, 4px 100%;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        .top-bar {
+            height: 48px;
+            background: rgba(30, 5, 5, 0.9);
+            border-bottom: 2px solid var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            font-size: 16px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            z-index: 10;
+            box-shadow: 0 5px 15px rgba(255, 51, 51, 0.15);
+        }
+
+        .app-title {
+            font-family: var(--font-display);
+            font-size: 24px;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .app-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--accent-orange);
+            font-family: var(--font-mono);
+            font-weight: bold;
+            animation: pulse-text 2s infinite;
+        }
+
+        @keyframes pulse-text {
+            0% { opacity: 0.8; }
+            50% { opacity: 1; text-shadow: 0 0 8px var(--accent-orange); }
+            100% { opacity: 0.8; }
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 20px;
+            padding: 24px;
+            height: calc(100vh - 48px);
+            width: 100%;
+            max-width: 1920px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background: var(--hex-panel);
+            border: 1px solid var(--primary-color);
+            position: relative;
+            box-shadow: 0 0 0 1px rgba(255, 51, 51, 0.1), 0 10px 30px rgba(0, 0, 0, 0.9);
+            clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .panel:hover {
+            border-color: #ffcccc;
+            box-shadow: var(--glow-border);
+        }
+
+        .panel::after {
+            content: "";
+            position: absolute;
+            right: 25px;
+            bottom: 5px;
+            width: 40px;
+            height: 4px;
+            background: var(--primary-color);
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .panel-header {
+            padding: 14px 20px;
+            background: rgba(255, 51, 51, 0.15);
+            color: var(--primary-color);
+            border-bottom: 1px solid var(--primary-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 17px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            flex-shrink: 0;
+        }
+
+        .panel-title {
+            font-family: var(--font-ui);
+            text-transform: uppercase;
+        }
+
+        .panel-title-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .panel-content {
+            padding: 18px;
+            min-height: 0;
+            flex: 1;
+        }
+
+        #summary-panel,
+        #cash-flow-panel {
+            overflow: auto;
+        }
+
+        .left-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-height: 0;
+        }
+
+        .left-column .panel {
+            flex: 1 1 0;
+        }
+
+        .right-column {
+            min-height: 0;
+        }
+
+        .toolbar-actions,
+        .quick-links {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .panel-header-actions {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .position-control-bar {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .control-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-row.compact {
+            gap: 6px;
+        }
+
+        .btn {
+            background: rgba(20, 0, 0, 0.6);
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            font-family: var(--font-ui);
+            font-size: 14px;
+            padding: 9px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 1px;
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+        }
+
+        .toolbar-actions .btn,
+        .quick-links .btn {
+            flex: 1 1 110px;
+            min-width: 110px;
+        }
+
+        .quick-links .btn {
+            background: rgba(255, 51, 51, 0.08);
+        }
+
+        .panel-header-actions .quick-links {
+            flex-wrap: nowrap;
+            gap: 6px;
+        }
+
+        .panel-header-actions .quick-links .btn {
+            flex: 0 0 auto;
+            min-width: 84px;
+            padding: 7px 12px;
+            font-size: 13px;
+        }
+
+        .toolbar-actions .btn {
+            border-width: 2px;
+        }
+
+        .btn:hover {
+            background: var(--primary-color);
+            color: #000;
+            box-shadow: var(--glow-strong);
+            transform: translateY(-1px);
+        }
+
+        .btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .btn:disabled:hover {
+            background: rgba(20, 0, 0, 0.6);
+            color: var(--primary-color);
+            box-shadow: none;
+            transform: none;
+        }
+
+        .btn.privacy-active {
+            background: rgba(255, 153, 0, 0.14);
+            border-color: var(--accent-orange);
+            color: var(--accent-orange);
+            box-shadow: 0 0 8px rgba(255, 153, 0, 0.25);
+        }
+
+        .eye-toggle-btn {
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            min-width: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            border: none;
+            background: transparent;
+            clip-path: none;
+            box-shadow: none;
+        }
+
+        .eye-toggle-btn svg {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            fill: none;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            pointer-events: none;
+        }
+
+        .eye-toggle-btn:hover {
+            background: transparent;
+            color: #ffd6d6;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .eye-toggle-btn.privacy-active {
+            background: transparent;
+            box-shadow: none;
+            color: var(--accent-orange);
+        }
+
+        .date-picker-shell {
+            border: 1px solid rgba(255, 51, 51, 0.2);
+            background: rgba(255, 51, 51, 0.06);
+            padding: 10px;
+            cursor: default;
+            transition: all 0.2s ease;
+            width: min(460px, 100%);
+        }
+
+        .date-picker-shell:hover {
+            border-color: var(--primary-color);
+            box-shadow: var(--glow-border);
+        }
+
+        .date-picker-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .date-picker-label {
+            font-size: 13px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0;
+        }
+
+        .date-picker-shell:focus-within .date-picker-label {
+            color: var(--primary-color);
+        }
+
+        .date-picker-main {
+            display: grid;
+            grid-template-columns: 1fr 42px;
+            gap: 8px;
+            align-items: stretch;
+        }
+
+        .date-inline-btn {
+            min-width: 88px;
+            padding: 7px 10px;
+            font-size: 13px;
+        }
+
+        .date-step-buttons {
+            display: grid;
+            grid-template-rows: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .date-step-btn {
+            min-width: 0;
+            padding: 0;
+            font-size: 13px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            clip-path: none;
+        }
+
+        .date-step-btn span {
+            transform: translateY(-1px);
+        }
+
+        .date-picker-trigger {
+            width: 100%;
+            border: 1px solid var(--text-dim);
+            background: #000;
+            color: #fff;
+            padding: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            font-family: var(--font-mono);
+            font-size: 17px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .date-picker-trigger:hover,
+        .date-picker-shell.open .date-picker-trigger {
+            border-color: var(--primary-color);
+            box-shadow: inset 0 0 12px rgba(255, 51, 51, 0.08);
+        }
+
+        .date-picker-value {
+            color: var(--text-main);
+        }
+
+        .date-picker-icon {
+            color: var(--primary-color);
+            font-family: var(--font-ui);
+            font-size: 14px;
+            letter-spacing: 1px;
+        }
+
+        .date-picker-popup {
+            margin-top: 10px;
+            border: 1px solid var(--primary-color);
+            background: rgba(10, 0, 0, 0.98);
+            box-shadow: var(--glow-border);
+            padding: 12px;
+            display: none;
+        }
+
+        .date-picker-shell.open .date-picker-popup {
+            display: block;
+        }
+
+        .date-picker-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .date-picker-nav-btn {
+            min-width: 42px;
+            padding: 6px 10px;
+            font-size: 13px;
+        }
+
+        .date-picker-month {
+            flex: 1;
+            text-align: center;
+            font-family: var(--font-ui);
+            font-size: 19px;
+            font-weight: 700;
+            color: var(--primary-color);
+            letter-spacing: 1px;
+        }
+
+        .calendar-weekdays,
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+        }
+
+        .calendar-weekdays {
+            margin-bottom: 8px;
+        }
+
+        .calendar-weekday {
+            text-align: center;
+            font-size: 13px;
+            color: var(--text-dim);
+            font-family: var(--font-ui);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .calendar-day {
+            border: 1px solid rgba(255, 51, 51, 0.14);
+            background: rgba(255, 51, 51, 0.04);
+            color: var(--text-main);
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 15px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .calendar-day:hover {
+            border-color: var(--primary-color);
+            background: rgba(255, 51, 51, 0.12);
+            color: #fff;
+        }
+
+        .calendar-day.outside-month {
+            color: var(--text-dim);
+            opacity: 0.45;
+        }
+
+        .calendar-day.today {
+            border-color: var(--accent-orange);
+            color: var(--accent-orange);
+        }
+
+        .calendar-day.selected {
+            border-color: var(--primary-color);
+            background: rgba(255, 51, 51, 0.28);
+            color: #fff;
+            box-shadow: inset 0 0 12px rgba(255, 51, 51, 0.15);
+        }
+
+        .calendar-day.future-day {
+            opacity: 0.3;
+            cursor: not-allowed;
+            color: var(--text-dim);
+        }
+
+        .calendar-day.future-day:hover {
+            border-color: rgba(255, 51, 51, 0.14);
+            background: rgba(255, 51, 51, 0.04);
+            color: var(--text-dim);
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        .metric-card {
+            border: 1px solid rgba(255, 51, 51, 0.18);
+            background: rgba(255, 51, 51, 0.05);
+            padding: 10px 14px;
+            min-height: 72px;
+        }
+
+        .metric-label {
+            font-size: 13px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-family: var(--font-mono);
+            font-size: 24px;
+            color: var(--text-main);
+            line-height: 1.08;
+            word-break: break-all;
+        }
+
+        .metric-emphasis .metric-value {
+            color: var(--primary-color);
+            text-shadow: var(--glow-text);
+        }
+
+        .metric-warning .metric-value {
+            color: var(--accent-orange);
+        }
+
+        .table-shell {
+            height: calc(100% - 0px);
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .table-scroll,
+        .cash-flow-list {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            border: 1px solid rgba(255, 51, 51, 0.18);
+            background: rgba(5, 0, 0, 0.5);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 16px;
+        }
+
+        th, td {
+            padding: 14px 12px;
+            border-bottom: 1px solid rgba(255, 51, 51, 0.1);
+            text-align: left;
+        }
+
+        th {
+            position: sticky;
+            top: 0;
+            background: rgba(40, 5, 5, 0.95);
+            color: var(--primary-color);
+            font-family: var(--font-ui);
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-shadow: var(--glow-text);
+            z-index: 1;
+            white-space: nowrap;
+        }
+
+        tr:hover td {
+            background: rgba(255, 51, 51, 0.1);
+        }
+
+        .pnl-positive { color: var(--primary-color); }
+        .pnl-negative { color: #4dff88; }
+
+        .cash-flow-list {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .cash-flow-item {
+            border-left: 3px solid var(--primary-color);
+            background: rgba(255, 51, 51, 0.06);
+            padding: 10px 12px;
+        }
+
+        .cash-flow-item.withdrawal {
+            border-left-color: var(--accent-orange);
+        }
+
+        .cash-flow-top,
+        .cash-flow-bottom {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 15px;
+        }
+
+        .cash-flow-top {
+            margin-bottom: 6px;
+            font-family: var(--font-mono);
+        }
+
+        .cash-flow-type {
+            color: var(--primary-color);
+            font-family: var(--font-ui);
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            text-shadow: var(--glow-text);
+        }
+
+        .cash-flow-item.withdrawal .cash-flow-type,
+        .cash-flow-item.withdrawal .cash-flow-amount {
+            color: var(--accent-orange);
+        }
+
+        .cash-flow-amount {
+            color: var(--primary-color);
+        }
+
+        .subtle {
+            color: var(--text-dim);
+        }
+
+        .loading-state,
+        .empty-state,
+        .error-state {
+            min-height: 160px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            color: var(--text-dim);
+            font-family: var(--font-mono);
+            font-size: 15px;
+        }
+
+        .error-state {
+            color: var(--primary-color);
+            border: 1px dashed var(--primary-color);
+            background: rgba(255, 0, 0, 0.08);
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 2px solid transparent;
+            border-top-color: var(--primary-color);
+            border-right-color: var(--accent-orange);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 1100px) {
+            body {
+                overflow: auto;
+            }
+
+            .layout {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+
+            .right-column {
+                min-height: 60vh;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .position-control-bar {
+                display: block;
+            }
+
+            .toolbar-actions .btn,
+            .quick-links .btn {
+                flex-basis: calc(50% - 8px);
+                min-width: 0;
+            }
+
+            .date-picker-shell {
+                width: 100%;
+            }
+
+            .panel-header-actions {
+                gap: 6px;
+            }
+
+            .panel-header-actions .quick-links {
+                display: flex;
+            }
+
+            .panel-header-actions .quick-links .nav-link-btn {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="crt">
+<div class="top-bar">
+    <div class="app-title">ASSET OPS CENTER <span style="font-size:0.6em; opacity:0.7; font-family:var(--font-mono)">v1.0</span></div>
+    <div class="app-status">LEDGER ONLINE</div>
+</div>
+
+<div class="layout">
+    <section class="left-column">
+        <div id="date-picker-shell" class="date-picker-shell">
+            <div class="date-picker-head">
+                <div class="date-picker-label">Select Target Date</div>
+                <button id="today-btn" class="btn date-inline-btn" type="button">Today</button>
+            </div>
+            <input id="target-date" type="hidden">
+            <div class="date-picker-main">
+                <div id="date-picker-trigger" class="date-picker-trigger" role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false">
+                    <span id="date-picker-value" class="date-picker-value">--</span>
+                    <span class="date-picker-icon">CALENDAR</span>
+                </div>
+                <div class="date-step-buttons">
+                    <button id="prev-trade-btn" class="btn date-step-btn" type="button" aria-label="上一个交易日">
+                        <span>▲</span>
+                    </button>
+                    <button id="next-trade-btn" class="btn date-step-btn" type="button" aria-label="下一个交易日">
+                        <span>▼</span>
+                    </button>
+                </div>
+            </div>
+            <div id="date-picker-popup" class="date-picker-popup">
+                <div class="date-picker-nav">
+                    <button id="calendar-prev" class="btn date-picker-nav-btn" type="button">&lt;</button>
+                    <div id="calendar-month" class="date-picker-month">--</div>
+                    <button id="calendar-next" class="btn date-picker-nav-btn" type="button">&gt;</button>
+                </div>
+                <div class="calendar-weekdays">
+                    <div class="calendar-weekday">日</div>
+                    <div class="calendar-weekday">一</div>
+                    <div class="calendar-weekday">二</div>
+                    <div class="calendar-weekday">三</div>
+                    <div class="calendar-weekday">四</div>
+                    <div class="calendar-weekday">五</div>
+                    <div class="calendar-weekday">六</div>
+                </div>
+                <div id="calendar-grid" class="calendar-grid"></div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Asset Summary</span>
+                <span id="summary-date" class="subtle">--</span>
+            </div>
+            <div id="summary-panel" class="panel-content">
+                <div class="loading-state">
+                    <div>
+                        <div class="spinner"></div>
+                        <div>SYNCING LEDGER...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-header">
+                <span class="panel-title">Cash Flows</span>
+                <span class="subtle">LAST 10</span>
+            </div>
+            <div id="cash-flow-panel" class="panel-content">
+                <div class="loading-state">
+                    <div>
+                        <div class="spinner"></div>
+                        <div>SYNCING LEDGER...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel right-column">
+        <div class="panel-header">
+            <div class="panel-title-group">
+                <span class="panel-title">Position Grid</span>
+                <button id="privacy-toggle-btn" class="btn eye-toggle-btn" type="button" aria-label="隐私开关" title="隐私开关"></button>
+            </div>
+            <div class="panel-header-actions">
+                <span id="pricing-date" class="subtle">--</span>
+                <div class="quick-links">
+                    <button id="import-settlement-btn" class="btn">Import CSV</button>
+                    <button class="btn nav-link-btn" onclick="window.location.href='/browser/'">Files</button>
+                    <button class="btn nav-link-btn" onclick="window.location.href='/browser/tasks'">Tasks</button>
+                    <button id="refresh-btn" class="btn nav-link-btn">Refresh</button>
+                </div>
+            </div>
+        </div>
+        <input id="settlement-file-input" type="file" accept=".csv" style="display:none">
+        <div class="panel-content">
+            <div id="position-panel" style="min-height:0; flex:1; display:flex; flex-direction:column;">
+                <div class="loading-state">
+                    <div>
+                        <div class="spinner"></div>
+                        <div>SYNCING LEDGER...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<script>
+    const targetDateInput = document.getElementById('target-date');
+    const datePickerShell = document.getElementById('date-picker-shell');
+    const datePickerTrigger = document.getElementById('date-picker-trigger');
+    const datePickerValue = document.getElementById('date-picker-value');
+    const datePickerPopup = document.getElementById('date-picker-popup');
+    const calendarPrev = document.getElementById('calendar-prev');
+    const calendarNext = document.getElementById('calendar-next');
+    const calendarMonth = document.getElementById('calendar-month');
+    const calendarGrid = document.getElementById('calendar-grid');
+    const privacyToggleBtn = document.getElementById('privacy-toggle-btn');
+    const importSettlementBtn = document.getElementById('import-settlement-btn');
+    const settlementFileInput = document.getElementById('settlement-file-input');
+    const refreshBtn = document.getElementById('refresh-btn');
+    const todayBtn = document.getElementById('today-btn');
+    const prevTradeBtn = document.getElementById('prev-trade-btn');
+    const nextTradeBtn = document.getElementById('next-trade-btn');
+    const summaryPanel = document.getElementById('summary-panel');
+    const cashFlowPanel = document.getElementById('cash-flow-panel');
+    const positionPanel = document.getElementById('position-panel');
+    const summaryDate = document.getElementById('summary-date');
+    const pricingDate = document.getElementById('pricing-date');
+    const PRIVACY_STORAGE_KEY = 'asset_privacy_mode';
+    let selectedDate = null;
+    let calendarCursor = null;
+    let calendarMonthCache = new Map();
+    let currentMaxTradeDate = null;
+    let latestDetailPayload = null;
+    let latestCashFlowPayload = null;
+    let privacyModeEnabled = localStorage.getItem(PRIVACY_STORAGE_KEY) === '1';
+
+    function getTodayString() {
+        const now = new Date();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${now.getFullYear()}-${month}-${day}`;
+    }
+
+    function formatCurrency(value) {
+        const number = Number(value || 0);
+        return `¥ ${number.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    function formatPercent(value) {
+        if (value === null || value === undefined) {
+            return '--';
+        }
+        return `${(Number(value) * 100).toFixed(2)}%`;
+    }
+
+    function getPrivacyMask() {
+        return '***';
+    }
+
+    function formatCurrencyMasked(value) {
+        return privacyModeEnabled ? getPrivacyMask() : formatCurrency(value);
+    }
+
+    function formatQuantityMasked(value) {
+        return privacyModeEnabled ? getPrivacyMask() : value;
+    }
+
+    function calculateProfitMetrics(detail) {
+        const totalAssets = Number(detail.total_assets || 0);
+        const netDeposit = Number(detail.net_deposit || 0);
+        const netProfit = totalAssets - netDeposit;
+        const returnRate = netDeposit > 0 ? netProfit / netDeposit : null;
+        return { netProfit, returnRate };
+    }
+
+    function formatDateTime(dateValue, timeValue) {
+        return `${dateValue} ${timeValue}`;
+    }
+
+    function parseDateString(value) {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || '');
+        if (!match) {
+            return null;
+        }
+        return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    }
+
+    function pad(value) {
+        return String(value).padStart(2, '0');
+    }
+
+    function getMonthCacheKey(year, month) {
+        return `${year}-${pad(month)}`;
+    }
+
+    function formatDateString(dateObj) {
+        return `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`;
+    }
+
+    function formatDateDisplay(dateObj) {
+        return `${dateObj.getFullYear()} / ${pad(dateObj.getMonth() + 1)} / ${pad(dateObj.getDate())}`;
+    }
+
+    function getTodayDate() {
+        return parseDateString(getTodayString());
+    }
+
+    function isAfterDate(left, right) {
+        return left.getTime() > right.getTime();
+    }
+
+    function clampToToday(dateObj) {
+        const today = getTodayDate();
+        if (isAfterDate(dateObj, today)) {
+            return new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        }
+        return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+    }
+
+    function updateDateControlState() {
+        const baseDate = selectedDate || parseDateString(targetDateInput.value) || getTodayDate();
+        const maxTradeDate = currentMaxTradeDate || getTodayDate();
+        const isAtToday = sameDate(baseDate, maxTradeDate);
+        nextTradeBtn.disabled = isAtToday;
+    }
+
+    function sameDate(left, right) {
+        return left && right
+            && left.getFullYear() === right.getFullYear()
+            && left.getMonth() === right.getMonth()
+            && left.getDate() === right.getDate();
+    }
+
+    function openDatePicker() {
+        datePickerShell.classList.add('open');
+        datePickerTrigger.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeDatePicker() {
+        datePickerShell.classList.remove('open');
+        datePickerTrigger.setAttribute('aria-expanded', 'false');
+    }
+
+    async function fetchTradeCalendarMonth(year, month) {
+        const cacheKey = getMonthCacheKey(year, month);
+        if (calendarMonthCache.has(cacheKey)) {
+            return calendarMonthCache.get(cacheKey);
+        }
+
+        const payload = await fetchJson(
+            `/trade-calendar/month?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}`
+        );
+        const itemMap = new Map();
+        (payload.items || []).forEach((item) => {
+            itemMap.set(item.cal_date, item);
+        });
+        calendarMonthCache.set(cacheKey, itemMap);
+        return itemMap;
+    }
+
+    async function normalizeTradeCalendarDate(dateString) {
+        const payload = await fetchJson(`/trade-calendar/normalize?date=${encodeURIComponent(dateString)}`);
+        return payload;
+    }
+
+    async function fetchAdjacentTradeCalendarDate(dateString, direction) {
+        const payload = await fetchJson(
+            `/trade-calendar/adjacent?date=${encodeURIComponent(dateString)}&direction=${encodeURIComponent(direction)}`
+        );
+        return payload;
+    }
+
+    function setSelectedDate(dateObj, shouldRefresh = false) {
+        const normalizedDate = clampToToday(dateObj);
+        selectedDate = normalizedDate;
+        calendarCursor = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+        targetDateInput.value = formatDateString(selectedDate);
+        datePickerValue.textContent = formatDateDisplay(selectedDate);
+        updateDateControlState();
+        void renderCalendar();
+        if (shouldRefresh) {
+            refreshCurrentDate();
+        }
+    }
+
+    async function renderCalendar() {
+        if (!calendarCursor) {
+            return;
+        }
+
+        calendarMonth.textContent = `${calendarCursor.getFullYear()} / ${pad(calendarCursor.getMonth() + 1)}`;
+        calendarGrid.innerHTML = '';
+        let monthItems;
+        try {
+            monthItems = await fetchTradeCalendarMonth(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1);
+        } catch (error) {
+            calendarGrid.innerHTML = '<div class="empty-state" style="grid-column:1 / -1; min-height:120px;">CALENDAR SYNC FAILED</div>';
+            return;
+        }
+
+        const firstDay = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1);
+        const startDate = new Date(firstDay);
+        startDate.setDate(startDate.getDate() - firstDay.getDay());
+        const today = currentMaxTradeDate || getTodayDate();
+        calendarNext.disabled = (
+            calendarCursor.getFullYear() > today.getFullYear()
+            || (calendarCursor.getFullYear() === today.getFullYear() && calendarCursor.getMonth() >= today.getMonth())
+        );
+
+        for (let index = 0; index < 42; index += 1) {
+            const cellDate = new Date(startDate);
+            cellDate.setDate(startDate.getDate() + index);
+            const isOutsideMonth = cellDate.getMonth() !== calendarCursor.getMonth();
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'calendar-day';
+            button.textContent = String(cellDate.getDate());
+
+            if (isOutsideMonth) {
+                button.classList.add('outside-month');
+            }
+            if (sameDate(cellDate, today)) {
+                button.classList.add('today');
+            }
+            if (sameDate(cellDate, selectedDate)) {
+                button.classList.add('selected');
+            }
+            const cellDateString = formatDateString(cellDate);
+            const dayMeta = monthItems.get(cellDateString);
+            const isFuture = isAfterDate(cellDate, today);
+            const isNonTradeDay = !isOutsideMonth && (!dayMeta || !dayMeta.is_open);
+
+            if (isOutsideMonth || isFuture || isNonTradeDay) {
+                button.classList.add('future-day');
+                button.disabled = true;
+            } else {
+                button.addEventListener('click', () => {
+                    setSelectedDate(cellDate, true);
+                    closeDatePicker();
+                });
+            }
+
+            calendarGrid.appendChild(button);
+        }
+    }
+
+    function renderLoading(target, text) {
+        target.innerHTML = `
+            <div class="loading-state">
+                <div>
+                    <div class="spinner"></div>
+                    <div>${text}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderError(target, message) {
+        target.innerHTML = `<div class="error-state">${message}</div>`;
+    }
+
+    function updatePrivacyButtonState() {
+        if (privacyModeEnabled) {
+            privacyToggleBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 3l18 18"></path>
+                    <path d="M10.6 10.7a2.5 2.5 0 0 0 3.2 3.2"></path>
+                    <path d="M9.5 5.6A10.6 10.6 0 0 1 12 5.3c5.2 0 8.8 4.1 10 6.7a15.3 15.3 0 0 1-3.2 4.1"></path>
+                    <path d="M6.2 6.2A15.2 15.2 0 0 0 2 12c1.2 2.6 4.8 6.7 10 6.7 1.2 0 2.4-.2 3.5-.6"></path>
+                </svg>
+            `;
+            privacyToggleBtn.setAttribute('title', '隐私已开启');
+            privacyToggleBtn.setAttribute('aria-label', '隐私已开启');
+        } else {
+            privacyToggleBtn.innerHTML = `
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M2 12s3.6-6.7 10-6.7S22 12 22 12s-3.6 6.7-10 6.7S2 12 2 12z"></path>
+                    <circle cx="12" cy="12" r="2.8"></circle>
+                </svg>
+            `;
+            privacyToggleBtn.setAttribute('title', '隐私已关闭');
+            privacyToggleBtn.setAttribute('aria-label', '隐私已关闭');
+        }
+        privacyToggleBtn.classList.toggle('privacy-active', privacyModeEnabled);
+    }
+
+    function setImportButtonState(isLoading) {
+        importSettlementBtn.disabled = isLoading;
+        importSettlementBtn.textContent = isLoading ? 'Importing...' : 'Import CSV';
+    }
+
+    function rerenderVisiblePanels() {
+        if (latestDetailPayload) {
+            renderSummary(latestDetailPayload);
+            renderPositions(latestDetailPayload);
+        }
+        if (latestCashFlowPayload) {
+            renderCashFlows(latestCashFlowPayload);
+        }
+    }
+
+    function renderSummary(detail) {
+        const profitMetrics = calculateProfitMetrics(detail);
+        const profitClass = profitMetrics.netProfit >= 0 ? 'metric-emphasis' : 'metric-warning';
+        const totalAssets = Number(detail.total_assets || 0);
+        const stockPositionRatio = totalAssets > 0 ? Number(detail.positions_market_value || 0) / totalAssets : null;
+        summaryDate.textContent = `TARGET ${detail.target_date}`;
+        summaryPanel.innerHTML = `
+            <div class="metrics-grid">
+                <div class="metric-card metric-emphasis">
+                    <div class="metric-label">总资产</div>
+                    <div class="metric-value">${formatCurrencyMasked(detail.total_assets)}</div>
+                </div>
+                <div class="metric-card metric-emphasis">
+                    <div class="metric-label">股票仓位</div>
+                    <div class="metric-value">${formatPercent(stockPositionRatio)}</div>
+                </div>
+                <div class="metric-card ${profitClass}">
+                    <div class="metric-label">净利润</div>
+                    <div class="metric-value">${formatCurrencyMasked(profitMetrics.netProfit)}</div>
+                </div>
+                <div class="metric-card ${profitClass}">
+                    <div class="metric-label">收益率</div>
+                    <div class="metric-value">${formatPercent(profitMetrics.returnRate)}</div>
+                </div>
+                <div class="metric-card ${Number(detail.net_deposit) < 0 ? 'metric-warning' : 'metric-emphasis'}">
+                    <div class="metric-label">净入金</div>
+                    <div class="metric-value">${formatCurrencyMasked(detail.net_deposit)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">现金余额</div>
+                    <div class="metric-value">${formatCurrencyMasked(detail.cash_balance)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">持仓市值</div>
+                    <div class="metric-value">${formatCurrencyMasked(detail.positions_market_value)}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderPositions(detail) {
+        pricingDate.textContent = `PRICE ${detail.pricing_trade_date}`;
+
+        if (!detail.positions || !detail.positions.length) {
+            positionPanel.innerHTML = `<div class="empty-state">NO POSITION DATA</div>`;
+            return;
+        }
+
+        const totalPositionMarketValue = Number(detail.positions_market_value || 0);
+        const rows = detail.positions.map((item) => {
+            const pnlClass = Number(item.unrealized_pnl) >= 0 ? 'pnl-positive' : 'pnl-negative';
+            const maskedPnlClass = privacyModeEnabled ? '' : pnlClass;
+            const positionRatio = totalPositionMarketValue > 0 ? Number(item.market_value || 0) / totalPositionMarketValue : null;
+            return `
+                <tr>
+                    <td>${item.security_code}</td>
+                    <td>${item.security_name || '--'}</td>
+                    <td>${formatQuantityMasked(item.quantity)}</td>
+                    <td>${formatCurrency(item.cost_price)}</td>
+                    <td>${formatCurrency(item.close_price)}</td>
+                    <td>${formatCurrencyMasked(item.market_value)}</td>
+                    <td>${formatPercent(positionRatio)}</td>
+                    <td class="${maskedPnlClass}">${formatCurrencyMasked(item.unrealized_pnl)}</td>
+                    <td class="${pnlClass}">${formatPercent(item.unrealized_pnl_pct)}</td>
+                    <td>${item.price_trade_date}</td>
+                </tr>
+            `;
+        }).join('');
+
+        positionPanel.innerHTML = `
+            <div class="table-shell">
+                <div class="table-scroll">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>代码</th>
+                                <th>名称</th>
+                                <th>数量</th>
+                                <th>成本价</th>
+                                <th>现价</th>
+                                <th>市值</th>
+                                <th>仓位占比</th>
+                                <th>浮盈亏</th>
+                                <th>收益率</th>
+                                <th>估值日</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+
+    function renderCashFlows(payload) {
+        if (!payload.items || !payload.items.length) {
+            cashFlowPanel.innerHTML = `<div class="empty-state">NO CASH FLOW DATA</div>`;
+            return;
+        }
+
+        const items = payload.items.map((item) => {
+            const isWithdrawal = item.trade_type === '证券转银行' || Number(item.amount) < 0;
+            const maskedBalance = privacyModeEnabled ? '余额 ***' : `余额 ${formatCurrency(item.cash_balance)}`;
+            const maskedAmount = privacyModeEnabled ? getPrivacyMask() : formatCurrency(item.amount);
+            return `
+                <div class="cash-flow-item ${isWithdrawal ? 'withdrawal' : ''}">
+                    <div class="cash-flow-top">
+                        <span>${formatDateTime(item.occur_date, item.occur_time)}</span>
+                        <span class="cash-flow-type">${item.trade_type}</span>
+                    </div>
+                    <div class="cash-flow-bottom">
+                        <span class="subtle">${maskedBalance}</span>
+                        <span class="cash-flow-amount">${maskedAmount}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        cashFlowPanel.innerHTML = `<div class="cash-flow-list">${items}</div>`;
+    }
+
+    async function fetchJson(url) {
+        const response = await fetch(url);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.detail || 'REQUEST FAILED');
+        }
+        return data;
+    }
+
+    async function uploadSettlementCsv(file) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await fetch('/settlements/import', {
+            method: 'POST',
+            body: formData,
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.detail || 'IMPORT FAILED');
+        }
+        return data;
+    }
+
+    async function rebuildSnapshotsIfNeeded(shouldRebuild) {
+        if (!shouldRebuild) {
+            return;
+        }
+        const response = await fetch('/assets/snapshots/rebuild?mode=incremental&include_pricing=false', {
+            method: 'POST',
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(data.detail || 'SNAPSHOT REBUILD FAILED');
+        }
+    }
+
+    async function loadDashboard(targetDate) {
+        renderLoading(summaryPanel, 'SYNCING LEDGER...');
+        renderLoading(cashFlowPanel, 'SYNCING LEDGER...');
+        renderLoading(positionPanel, 'SYNCING LEDGER...');
+        summaryDate.textContent = `TARGET ${targetDate}`;
+        pricingDate.textContent = '--';
+
+        const detailUrl = `/assets/detail?target_date=${encodeURIComponent(targetDate)}`;
+        const cashFlowUrl = `/assets/cash-flows?target_date=${encodeURIComponent(targetDate)}&limit=10`;
+
+        const detailPromise = fetchJson(detailUrl)
+            .then((detail) => {
+                latestDetailPayload = detail;
+                renderSummary(detail);
+                renderPositions(detail);
+            })
+            .catch((error) => {
+                latestDetailPayload = null;
+                renderError(summaryPanel, error.message);
+                renderError(positionPanel, error.message);
+            });
+
+        const cashFlowPromise = fetchJson(cashFlowUrl)
+            .then((payload) => {
+                latestCashFlowPayload = payload;
+                renderCashFlows(payload);
+            })
+            .catch((error) => {
+                latestCashFlowPayload = null;
+                renderError(cashFlowPanel, error.message);
+            });
+
+        await Promise.allSettled([detailPromise, cashFlowPromise]);
+    }
+
+    function refreshCurrentDate() {
+        loadDashboard(targetDateInput.value || getTodayString());
+    }
+
+    privacyToggleBtn.addEventListener('click', () => {
+        privacyModeEnabled = !privacyModeEnabled;
+        localStorage.setItem(PRIVACY_STORAGE_KEY, privacyModeEnabled ? '1' : '0');
+        updatePrivacyButtonState();
+        rerenderVisiblePanels();
+    });
+
+    importSettlementBtn.addEventListener('click', () => {
+        settlementFileInput.click();
+    });
+
+    settlementFileInput.addEventListener('change', async () => {
+        const file = settlementFileInput.files && settlementFileInput.files[0];
+        settlementFileInput.value = '';
+        if (!file) {
+            return;
+        }
+
+        try {
+            setImportButtonState(true);
+            const result = await uploadSettlementCsv(file);
+            await rebuildSnapshotsIfNeeded(Number(result.inserted_count || 0) > 0);
+            await loadDashboard(targetDateInput.value || getTodayString());
+            alert(`导入完成：新增 ${result.inserted_count} 条，跳过 ${result.skipped_count} 条。`);
+        } catch (error) {
+            alert(error.message || '导入失败');
+        } finally {
+            setImportButtonState(false);
+        }
+    });
+
+    refreshBtn.addEventListener('click', refreshCurrentDate);
+    todayBtn.addEventListener('click', async () => {
+        try {
+            const payload = await normalizeTradeCalendarDate(getTodayString());
+            currentMaxTradeDate = parseDateString(payload.effective_date);
+            setSelectedDate(parseDateString(payload.effective_date), true);
+            closeDatePicker();
+        } catch (error) {
+            alert(error.message || '交易日历查询失败');
+        }
+    });
+
+    prevTradeBtn.addEventListener('click', async () => {
+        const baseDate = selectedDate || parseDateString(targetDateInput.value) || parseDateString(getTodayString());
+        try {
+            const payload = await fetchAdjacentTradeCalendarDate(formatDateString(baseDate), 'prev');
+            setSelectedDate(parseDateString(payload.effective_date), true);
+            closeDatePicker();
+        } catch (error) {
+            alert(error.message || '交易日切换失败');
+        }
+    });
+
+    nextTradeBtn.addEventListener('click', async () => {
+        const baseDate = selectedDate || parseDateString(targetDateInput.value) || parseDateString(getTodayString());
+        const maxTradeDate = currentMaxTradeDate || getTodayDate();
+        if (sameDate(baseDate, maxTradeDate)) {
+            return;
+        }
+        try {
+            const payload = await fetchAdjacentTradeCalendarDate(formatDateString(baseDate), 'next');
+            setSelectedDate(parseDateString(payload.effective_date), true);
+            closeDatePicker();
+        } catch (error) {
+            alert(error.message || '交易日切换失败');
+        }
+    });
+
+    datePickerTrigger.addEventListener('click', () => {
+        if (datePickerShell.classList.contains('open')) {
+            closeDatePicker();
+        } else {
+            openDatePicker();
+        }
+    });
+
+    datePickerTrigger.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openDatePicker();
+        }
+    });
+
+    calendarPrev.addEventListener('click', () => {
+        calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() - 1, 1);
+        void renderCalendar();
+    });
+
+    calendarNext.addEventListener('click', () => {
+        calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 1);
+        void renderCalendar();
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!datePickerShell.contains(event.target)) {
+            closeDatePicker();
+        }
+    });
+
+    async function initializeDashboard() {
+        updatePrivacyButtonState();
+        try {
+            const payload = await normalizeTradeCalendarDate(getTodayString());
+            currentMaxTradeDate = parseDateString(payload.effective_date);
+            setSelectedDate(parseDateString(payload.effective_date));
+            await loadDashboard(payload.effective_date);
+        } catch (error) {
+            currentMaxTradeDate = getTodayDate();
+            setSelectedDate(parseDateString(getTodayString()));
+            await loadDashboard(targetDateInput.value || getTodayString());
+        }
+    }
+
+    void initializeDashboard();
+</script>
+</body>
+</html>

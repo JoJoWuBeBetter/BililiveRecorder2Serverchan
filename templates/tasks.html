@@ -535,7 +535,11 @@
     <section class="panel">
         <div class="panel-header">
             <span class="panel-title">Task List</span>
-            <button id="refresh-btn" class="btn">Refresh</button>
+            <div style="display:flex; gap:8px;">
+                <button class="btn" onclick="window.location.href='/browser/assets'">Assets</button>
+                <button class="btn" onclick="window.location.href='/browser/'">Files</button>
+                <button id="refresh-btn" class="btn">Refresh</button>
+            </div>
         </div>
         <div class="panel-content">
             <div id="task-list" class="task-list-container"></div>

@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from config import get_tushare_token
 from schemas.stock import AdjustmentType, StockDailyBar, StockHistoryQuery, StockHistoryResponse
+from services.simple_cache import SimpleTTLCache, app_cache
+from services.tushare_guard import guarded_tushare_call
+
+logger = logging.getLogger(__name__)
 
 
 class StockHistoryConfigError(RuntimeError):
@@ -28,6 +34,9 @@ class StockHistoryService:
         AdjustmentType.HFQ: "hfq",
     }
 
+    def __init__(self, cache: Optional[SimpleTTLCache] = None):
+        self.cache = cache or app_cache
+
     def get_stock_history(
         self,
         ts_code: str,
@@ -37,6 +46,25 @@ class StockHistoryService:
         adjust: AdjustmentType = AdjustmentType.NONE,
     ) -> StockHistoryResponse:
         normalized_ts_code = self._normalize_ts_code(ts_code)
+        cache_key = self._build_cache_key(
+            normalized_ts_code=normalized_ts_code,
+            start_date=start_date,
+            end_date=end_date,
+            trade_date=trade_date,
+            adjust=adjust,
+        )
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logger.info(
+                "行情命中内存缓存: ts_code=%s, start=%s, end=%s, trade_date=%s, adjust=%s",
+                normalized_ts_code,
+                start_date,
+                end_date,
+                trade_date,
+                adjust.value,
+            )
+            return cached  # type: ignore[return-value]
+
         token = get_tushare_token()
         if not token:
             raise StockHistoryConfigError("TUSHARE_TOKEN 未配置")
@@ -44,30 +72,44 @@ class StockHistoryService:
         tushare = self._get_tushare_module()
         formatted_start = self._format_tushare_date(trade_date or start_date)
         formatted_end = self._format_tushare_date(trade_date or end_date)
-        tushare.set_token(token)
+        asset_candidates = self._get_asset_candidates(normalized_ts_code)
+        logger.info(
+            "开始查询行情: ts_code=%s, start=%s, end=%s, trade_date=%s, adjust=%s, assets=%s",
+            normalized_ts_code,
+            start_date,
+            end_date,
+            trade_date,
+            adjust.value,
+            ",".join(asset_candidates),
+        )
 
         items: List[StockDailyBar] = []
-        for asset in self._get_asset_candidates(normalized_ts_code):
-            try:
-                result = tushare.pro_bar(
-                    ts_code=normalized_ts_code,
-                    start_date=formatted_start,
-                    end_date=formatted_end,
-                    adj=self._ADJUST_MAP[adjust],
-                    asset=asset,
-                    freq="D",
-                )
-            except Exception as exc:  # noqa: BLE001 - need to normalize third-party failures
-                if self._is_permission_error(exc):
-                    raise StockHistoryPermissionError(str(exc)) from exc
-                raise StockHistoryFetchError(f"Tushare 请求失败: {exc}") from exc
+        matched_asset: Optional[str] = None
+        with guarded_tushare_call():
+            tushare.set_token(token)
+            for asset in asset_candidates:
+                try:
+                    logger.info("请求 Tushare 日线: ts_code=%s, asset=%s", normalized_ts_code, asset)
+                    result = tushare.pro_bar(
+                        ts_code=normalized_ts_code,
+                        start_date=formatted_start,
+                        end_date=formatted_end,
+                        adj=self._ADJUST_MAP[adjust],
+                        asset=asset,
+                        freq="D",
+                    )
+                except Exception as exc:  # noqa: BLE001 - need to normalize third-party failures
+                    if self._is_permission_error(exc):
+                        raise StockHistoryPermissionError(str(exc)) from exc
+                    raise StockHistoryFetchError(f"Tushare 请求失败: {exc}") from exc
 
-            records = self._extract_records(result)
-            items = self._normalize_items(records)
-            if items:
-                break
+                records = self._extract_records(result)
+                items = self._normalize_items(records)
+                if items:
+                    matched_asset = asset
+                    break
 
-        return StockHistoryResponse(
+        response = StockHistoryResponse(
             ts_code=normalized_ts_code,
             adjust=adjust,
             query=StockHistoryQuery(
@@ -78,6 +120,45 @@ class StockHistoryService:
             count=len(items),
             items=items,
         )
+        self.cache.set(cache_key, response, ttl_seconds=self._get_cache_ttl(start_date, end_date, trade_date))
+        logger.info(
+            "行情查询完成: ts_code=%s, matched_asset=%s, count=%s",
+            normalized_ts_code,
+            matched_asset or "none",
+            len(items),
+        )
+        return response
+
+    def _build_cache_key(
+        self,
+        normalized_ts_code: str,
+        start_date: Optional[date],
+        end_date: Optional[date],
+        trade_date: Optional[date],
+        adjust: AdjustmentType,
+    ) -> str:
+        return self.cache.build_key(
+            "stock_history",
+            (
+                normalized_ts_code,
+                self._format_cache_date(start_date),
+                self._format_cache_date(end_date),
+                self._format_cache_date(trade_date),
+                adjust.value,
+            ),
+        )
+
+    def _get_cache_ttl(
+        self,
+        start_date: Optional[date],
+        end_date: Optional[date],
+        trade_date: Optional[date],
+    ) -> int:
+        today = self._today_shanghai()
+        reference_date = trade_date or end_date or start_date
+        if reference_date is None or reference_date >= today:
+            return 60
+        return 43200
 
     def _get_tushare_module(self) -> Any:
         try:
@@ -91,6 +172,12 @@ class StockHistoryService:
         if value is None:
             return None
         return value.strftime("%Y%m%d")
+
+    @staticmethod
+    def _format_cache_date(value: Optional[date]) -> str:
+        if value is None:
+            return ""
+        return value.isoformat()
 
     @staticmethod
     def _normalize_ts_code(ts_code: str) -> str:
@@ -193,3 +280,7 @@ class StockHistoryService:
     @staticmethod
     def _to_float(value: Any) -> float:
         return float(value)
+
+    @staticmethod
+    def _today_shanghai() -> date:
+        return datetime.now(ZoneInfo("Asia/Shanghai")).date()

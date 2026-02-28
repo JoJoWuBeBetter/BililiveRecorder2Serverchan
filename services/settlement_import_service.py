@@ -4,6 +4,7 @@ import csv
 import hashlib
 import io
 import json
+import logging
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
@@ -12,8 +13,11 @@ from typing import Any, Optional
 from sqlalchemy.orm import Session
 
 from crud.settlement_crud import bulk_create_settlements, get_existing_hashes
-from models.settlement import SettlementRecord
+from models.settlement import SettlementRecord, SettlementTradeType
 from schemas.settlement import SettlementImportResponse
+from services.simple_cache import app_cache
+
+logger = logging.getLogger(__name__)
 
 
 class SettlementImportError(ValueError):
@@ -47,13 +51,6 @@ class SettlementImportService:
 
     DECIMAL_FIELDS = {
         "成交均价",
-        "成交金额",
-        "发生金额",
-        "佣金",
-        "其他费用",
-        "印花税",
-        "过户费",
-        "资金余额",
     }
     INTEGER_FIELDS = {"成交数量", "股份余额"}
 
@@ -98,7 +95,9 @@ class SettlementImportService:
         file_bytes: bytes,
         filename: str,
     ) -> SettlementImportResponse:
+        logger.info("开始导入交割单: filename=%s, bytes=%s", filename, len(file_bytes))
         raw_rows = self.parse_csv(file_bytes)
+        logger.info("交割单解析完成: filename=%s, raw_rows=%s", filename, len(raw_rows))
 
         deduplicated_rows: dict[str, dict[str, Any]] = {}
         for index, raw_row in enumerate(raw_rows, start=2):
@@ -108,7 +107,18 @@ class SettlementImportService:
                 deduplicated_rows[source_hash] = normalized
 
         file_hashes = list(deduplicated_rows.keys())
+        logger.info(
+            "交割单文件内去重完成: filename=%s, unique_rows=%s, skipped_in_file=%s",
+            filename,
+            len(file_hashes),
+            len(raw_rows) - len(file_hashes),
+        )
         existing_hashes = get_existing_hashes(db, file_hashes)
+        logger.info(
+            "交割单数据库去重检查完成: filename=%s, existing_rows=%s",
+            filename,
+            len(existing_hashes),
+        )
 
         records_to_insert = [
             self._build_model(deduplicated_rows[source_hash])
@@ -116,7 +126,18 @@ class SettlementImportService:
             if source_hash not in existing_hashes
         ]
         inserted_count = bulk_create_settlements(db, records_to_insert)
+        if inserted_count > 0:
+            app_cache.clear_namespace("asset_detail")
+            app_cache.clear_namespace("asset_cash_flows")
+            logger.info("交割单导入触发缓存失效: cleared=asset_detail,asset_cash_flows")
         total_count = len(file_hashes)
+        logger.info(
+            "交割单导入完成: filename=%s, total=%s, inserted=%s, skipped=%s",
+            filename,
+            total_count,
+            inserted_count,
+            total_count - inserted_count,
+        )
 
         return SettlementImportResponse(
             filename=filename,
@@ -132,17 +153,17 @@ class SettlementImportService:
             "occur_time": self._parse_time(raw_row["发生时间"], row_number, "发生时间"),
             "security_code": self._normalize_text(raw_row["证券代码"]),
             "security_name": self._normalize_text(raw_row["证券名称"]),
-            "trade_type": self._require_text(raw_row["交易类别"], row_number, "交易类别"),
+            "trade_type": self._parse_trade_type(raw_row["交易类别"], row_number),
             "volume": self._parse_integer(raw_row["成交数量"], row_number, "成交数量"),
             "price": self._parse_decimal(raw_row["成交均价"], row_number, "成交均价"),
-            "turnover": self._parse_decimal(raw_row["成交金额"], row_number, "成交金额"),
-            "amount": self._parse_decimal(raw_row["发生金额"], row_number, "发生金额"),
-            "commission": self._parse_decimal(raw_row["佣金"], row_number, "佣金"),
-            "other_fee": self._parse_decimal(raw_row["其他费用"], row_number, "其他费用"),
-            "stamp_duty": self._parse_decimal(raw_row["印花税"], row_number, "印花税"),
-            "transfer_fee": self._parse_decimal(raw_row["过户费"], row_number, "过户费"),
+            "turnover_milli": self._parse_money_milli(raw_row["成交金额"], row_number, "成交金额"),
+            "amount_milli": self._parse_money_milli(raw_row["发生金额"], row_number, "发生金额"),
+            "commission_milli": self._parse_money_milli(raw_row["佣金"], row_number, "佣金"),
+            "other_fee_milli": self._parse_money_milli(raw_row["其他费用"], row_number, "其他费用"),
+            "stamp_duty_milli": self._parse_money_milli(raw_row["印花税"], row_number, "印花税"),
+            "transfer_fee_milli": self._parse_money_milli(raw_row["过户费"], row_number, "过户费"),
             "share_balance": self._parse_integer(raw_row["股份余额"], row_number, "股份余额"),
-            "cash_balance": self._parse_decimal(raw_row["资金余额"], row_number, "资金余额"),
+            "cash_balance_milli": self._parse_money_milli(raw_row["资金余额"], row_number, "资金余额"),
             "trade_no": self._normalize_text(raw_row["成交编号"]),
             "shareholder_account": self._normalize_text(raw_row["股东账号"]),
             "serial_no": self._normalize_text(raw_row["流水号"]),
@@ -163,14 +184,14 @@ class SettlementImportService:
             "trade_type": normalized_row["trade_type"],
             "volume": normalized_row["volume"],
             "price": self._decimal_to_string(normalized_row["price"]),
-            "turnover": self._decimal_to_string(normalized_row["turnover"]),
-            "amount": self._decimal_to_string(normalized_row["amount"]),
-            "commission": self._decimal_to_string(normalized_row["commission"]),
-            "other_fee": self._decimal_to_string(normalized_row["other_fee"]),
-            "stamp_duty": self._decimal_to_string(normalized_row["stamp_duty"]),
-            "transfer_fee": self._decimal_to_string(normalized_row["transfer_fee"]),
+            "turnover_milli": normalized_row["turnover_milli"],
+            "amount_milli": normalized_row["amount_milli"],
+            "commission_milli": normalized_row["commission_milli"],
+            "other_fee_milli": normalized_row["other_fee_milli"],
+            "stamp_duty_milli": normalized_row["stamp_duty_milli"],
+            "transfer_fee_milli": normalized_row["transfer_fee_milli"],
             "share_balance": normalized_row["share_balance"],
-            "cash_balance": self._decimal_to_string(normalized_row["cash_balance"]),
+            "cash_balance_milli": normalized_row["cash_balance_milli"],
             "trade_no": normalized_row["trade_no"],
             "shareholder_account": normalized_row["shareholder_account"],
             "serial_no": normalized_row["serial_no"],
@@ -210,6 +231,12 @@ class SettlementImportService:
             raise SettlementImportError(f"第 {row_number} 行字段 {field_name} 不能为空")
         return text
 
+    def _parse_trade_type(self, value: str, row_number: int) -> str:
+        text = self._require_text(value, row_number, "交易类别")
+        if text not in SettlementTradeType.values():
+            raise SettlementImportError(f"第 {row_number} 行字段 交易类别 不支持: {text}")
+        return text
+
     @staticmethod
     def _parse_date(value: str, row_number: int, field_name: str):
         try:
@@ -228,6 +255,10 @@ class SettlementImportService:
         parsed = self._parse_decimal(value, row_number, field_name)
         return int(parsed)
 
+    def _parse_money_milli(self, value: str, row_number: int, field_name: str) -> int:
+        parsed = self._parse_decimal(value, row_number, field_name)
+        return self._decimal_to_milli(parsed)
+
     @staticmethod
     def _parse_decimal(value: str, row_number: int, field_name: str) -> Decimal:
         text = value.strip()
@@ -245,6 +276,10 @@ class SettlementImportService:
         if "." in text:
             text = text.rstrip("0").rstrip(".")
         return text or "0"
+
+    @staticmethod
+    def _decimal_to_milli(value: Decimal) -> int:
+        return int((value * Decimal("1000")).quantize(Decimal("1")))
 
 
 settlement_import_service = SettlementImportService()

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Dict, Optional
 from zoneinfo import ZoneInfo
@@ -13,12 +14,16 @@ from crud.asset_crud import (
     has_settlement_records,
     list_records_on_or_before,
 )
-from models.settlement import SettlementRecord
-from schemas.asset import AssetDetailResponse, AssetPositionItem
+from models.settlement import SettlementRecord, SettlementTradeType
+from schemas.asset import AssetCashFlowItem, AssetCashFlowResponse, AssetDetailResponse, AssetPositionItem
+from services.simple_cache import SimpleTTLCache, app_cache
 from services.stock_history_service import (
     StockHistoryFetchError,
     StockHistoryService,
 )
+from services.trade_calendar_service import TradeCalendarService, trade_calendar_service
+
+logger = logging.getLogger(__name__)
 
 
 class AssetDetailNotFoundError(LookupError):
@@ -28,19 +33,33 @@ class AssetDetailNotFoundError(LookupError):
 @dataclass
 class CostBasisState:
     shares: int = 0
-    remaining_cost: Decimal = Decimal("0")
+    remaining_cost_milli: int = 0
 
 
 class AssetService:
-    def __init__(self, stock_history_service: Optional[StockHistoryService] = None):
+    def __init__(
+        self,
+        stock_history_service: Optional[StockHistoryService] = None,
+        trade_calendar_service_instance: Optional[TradeCalendarService] = None,
+        cache: Optional[SimpleTTLCache] = None,
+    ):
         self.stock_history_service = stock_history_service or StockHistoryService()
+        self.trade_calendar_service = trade_calendar_service_instance or trade_calendar_service
+        self.cache = cache or app_cache
 
     def get_asset_detail(
         self,
         db: Session,
         target_date: Optional[date] = None,
     ) -> AssetDetailResponse:
-        resolved_target_date = target_date or self._now_shanghai().date()
+        now_shanghai = self._now_shanghai()
+        resolved_target_date = target_date or now_shanghai.date()
+        cache_key = self._build_asset_cache_key(resolved_target_date, now_shanghai)
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logger.info("资产详情命中内存缓存: target_date=%s", resolved_target_date)
+            return cached  # type: ignore[return-value]
+        logger.info("开始查询资产详情: target_date=%s", resolved_target_date)
 
         if not has_settlement_records(db):
             raise AssetDetailNotFoundError("暂无交割单数据")
@@ -48,24 +67,38 @@ class AssetService:
         records = list_records_on_or_before(db, resolved_target_date)
         if not records:
             raise AssetDetailNotFoundError("目标日期及之前没有交割记录")
+        logger.info("资产详情交割记录加载完成: target_date=%s, records=%s", resolved_target_date, len(records))
 
-        cash_balance = Decimal(str(records[-1].cash_balance))
+        cash_balance = self._milli_to_decimal(int(records[-1].cash_balance_milli))
+        total_deposit, total_withdrawal, net_deposit = self._calculate_cash_flow_metrics(records)
         position_snapshots = self._extract_position_snapshots(records)
 
         if not position_snapshots:
-            return AssetDetailResponse(
+            logger.info("资产详情无持仓: target_date=%s", resolved_target_date)
+            response = AssetDetailResponse(
                 target_date=resolved_target_date,
                 pricing_trade_date=resolved_target_date,
                 cash_balance=cash_balance,
+                total_deposit=total_deposit,
+                total_withdrawal=total_withdrawal,
+                net_deposit=net_deposit,
                 positions_market_value=Decimal("0"),
                 total_assets=cash_balance,
                 position_count=0,
                 positions=[],
             )
+            self.cache.set(cache_key, response, ttl_seconds=self._get_asset_cache_ttl(resolved_target_date, now_shanghai))
+            return response
 
         security_codes = [record.security_code for record in position_snapshots if record.security_code]
         trade_records = get_trade_records_for_codes_on_or_before(db, resolved_target_date, security_codes)
         cost_states = self._build_cost_basis(trade_records)
+        logger.info(
+            "资产详情开始估值持仓: target_date=%s, positions=%s, trade_records=%s",
+            resolved_target_date,
+            len(position_snapshots),
+            len(trade_records),
+        )
 
         positions = []
         pricing_dates = []
@@ -104,15 +137,103 @@ class AssetService:
         positions.sort(key=lambda item: item.market_value, reverse=True)
         positions_market_value = sum((item.market_value for item in positions), Decimal("0"))
 
-        return AssetDetailResponse(
+        response = AssetDetailResponse(
             target_date=resolved_target_date,
             pricing_trade_date=max(pricing_dates) if pricing_dates else resolved_target_date,
             cash_balance=cash_balance,
+            total_deposit=total_deposit,
+            total_withdrawal=total_withdrawal,
+            net_deposit=net_deposit,
             positions_market_value=positions_market_value,
             total_assets=cash_balance + positions_market_value,
             position_count=len(positions),
             positions=positions,
         )
+        self.cache.set(cache_key, response, ttl_seconds=self._get_asset_cache_ttl(resolved_target_date, now_shanghai))
+        logger.info(
+            "资产详情查询完成: target_date=%s, positions=%s, total_assets=%s",
+            resolved_target_date,
+            len(positions),
+            response.total_assets,
+        )
+        return response
+
+    def get_cash_flows(
+        self,
+        db: Session,
+        target_date: Optional[date] = None,
+        limit: int = 10,
+    ) -> AssetCashFlowResponse:
+        resolved_target_date = target_date or self._now_shanghai().date()
+        normalized_limit = max(1, min(limit, 50))
+
+        if not has_settlement_records(db):
+            raise AssetDetailNotFoundError("暂无交割单数据")
+
+        cache_key = self._build_cash_flow_cache_key(resolved_target_date, normalized_limit)
+        cached = self.cache.get(cache_key)
+        if cached is not None:
+            logger.info(
+                "资金流水命中内存缓存: target_date=%s, limit=%s",
+                resolved_target_date,
+                normalized_limit,
+            )
+            return cached  # type: ignore[return-value]
+        logger.info("开始查询资金流水: target_date=%s, limit=%s", resolved_target_date, normalized_limit)
+
+        records = list_records_on_or_before(db, resolved_target_date)
+        cash_flow_records = [
+            record
+            for record in reversed(records)
+            if record.trade_type in {
+                SettlementTradeType.BANK_TO_SECURITY.value,
+                SettlementTradeType.SECURITY_TO_BANK.value,
+            }
+        ]
+
+        items = [
+            AssetCashFlowItem(
+                occur_date=record.occur_date,
+                occur_time=record.occur_time,
+                trade_type=record.trade_type,
+                amount=record.amount,
+                cash_balance=record.cash_balance,
+            )
+            for record in cash_flow_records[:normalized_limit]
+        ]
+
+        response = AssetCashFlowResponse(
+            target_date=resolved_target_date,
+            count=len(items),
+            items=items,
+        )
+        self.cache.set(
+            cache_key,
+            response,
+            ttl_seconds=self._get_list_cache_ttl(resolved_target_date, self._now_shanghai()),
+        )
+        logger.info(
+            "资金流水查询完成: target_date=%s, items=%s",
+            resolved_target_date,
+            len(items),
+        )
+        return response
+
+    @staticmethod
+    def _calculate_cash_flow_metrics(records: list[SettlementRecord]) -> tuple[Decimal, Decimal, Decimal]:
+        deposit_milli = 0
+        withdrawal_milli = 0
+
+        for record in records:
+            if record.trade_type == SettlementTradeType.BANK_TO_SECURITY.value:
+                deposit_milli += max(int(record.amount_milli), 0)
+            elif record.trade_type == SettlementTradeType.SECURITY_TO_BANK.value:
+                withdrawal_milli += abs(int(record.amount_milli))
+
+        total_deposit = AssetService._milli_to_decimal(deposit_milli)
+        total_withdrawal = AssetService._milli_to_decimal(withdrawal_milli)
+        net_deposit = AssetService._milli_to_decimal(deposit_milli - withdrawal_milli)
+        return total_deposit, total_withdrawal, net_deposit
 
     @staticmethod
     def _extract_position_snapshots(records: list[SettlementRecord]) -> list[SettlementRecord]:
@@ -138,46 +259,67 @@ class AssetService:
             state = states.setdefault(record.security_code, CostBasisState())
             volume = int(record.volume)
 
-            if record.trade_type == "证券买入":
+            if record.trade_type == SettlementTradeType.SECURITY_BUY.value:
                 state.shares += volume
-                state.remaining_cost += abs(Decimal(str(record.amount)))
-            elif record.trade_type == "证券卖出":
+                state.remaining_cost_milli += abs(int(record.amount_milli))
+            elif record.trade_type == SettlementTradeType.SECURITY_SELL.value:
                 if state.shares <= 0:
                     state.shares = 0
-                    state.remaining_cost = Decimal("0")
+                    state.remaining_cost_milli = 0
                     continue
 
                 sell_volume = min(volume, state.shares)
-                average_cost = state.remaining_cost / Decimal(state.shares) if state.shares > 0 else Decimal("0")
-                deducted_cost = average_cost * Decimal(sell_volume)
+                sell_proceeds_milli = max(int(record.amount_milli), 0)
                 state.shares -= sell_volume
-                state.remaining_cost -= deducted_cost
+                state.remaining_cost_milli -= sell_proceeds_milli
 
                 if state.shares <= 0:
                     state.shares = 0
-                    state.remaining_cost = Decimal("0")
-                elif state.remaining_cost < 0:
-                    state.remaining_cost = Decimal("0")
+                    state.remaining_cost_milli = 0
+                elif state.remaining_cost_milli < 0:
+                    state.remaining_cost_milli = 0
 
         return states
 
     def _fetch_close_price(self, security_code: str, target_date: date) -> tuple[Decimal, date]:
-        query_start = target_date - timedelta(days=10)
+        pricing_trade_date = self.trade_calendar_service.get_effective_trade_date(
+            target_date,
+            now=self._now_shanghai(),
+        )
+        logger.info(
+            "开始估值证券: security_code=%s, target_date=%s, pricing_trade_date=%s",
+            security_code,
+            target_date,
+            pricing_trade_date,
+        )
+        query_start = pricing_trade_date - timedelta(days=3)
         history = self.stock_history_service.get_stock_history(
             ts_code=security_code,
             start_date=query_start,
-            end_date=target_date,
+            end_date=pricing_trade_date,
         )
         if not history.items:
-            raise StockHistoryFetchError(f"{security_code} 在 {target_date} 及之前没有可用行情")
+            raise StockHistoryFetchError(f"{security_code} 在 {pricing_trade_date} 及之前没有可用行情")
 
-        selected_bar = history.items[-1]
-        now = self._now_shanghai()
-        if target_date == now.date() and now.time() < time(15, 0, 0) and selected_bar.trade_date == target_date:
-            if len(history.items) < 2:
-                raise StockHistoryFetchError(f"{security_code} 在 {target_date} 未收盘且没有上一交易日行情")
-            selected_bar = history.items[-2]
+        selected_bar = None
+        for bar in history.items:
+            if bar.trade_date == pricing_trade_date:
+                selected_bar = bar
 
+        if selected_bar is None:
+            for bar in history.items:
+                if bar.trade_date <= pricing_trade_date:
+                    selected_bar = bar
+
+        if selected_bar is None:
+            raise StockHistoryFetchError(f"{security_code} 在 {pricing_trade_date} 没有匹配的估值行情")
+
+        logger.info(
+            "证券估值完成: security_code=%s, pricing_trade_date=%s, close=%s",
+            security_code,
+            selected_bar.trade_date,
+            selected_bar.close,
+        )
         return Decimal(str(selected_bar.close)), selected_bar.trade_date
 
     @staticmethod
@@ -185,11 +327,11 @@ class AssetService:
         if final_shares <= 0:
             return Decimal("0"), Decimal("0")
 
-        if state.remaining_cost <= 0:
+        if state.remaining_cost_milli <= 0:
             return Decimal("0"), Decimal("0")
 
-        cost_price = state.remaining_cost / Decimal(final_shares)
-        cost_amount = cost_price * Decimal(final_shares)
+        cost_amount = AssetService._milli_to_decimal(state.remaining_cost_milli)
+        cost_price = cost_amount / Decimal(final_shares)
         return cost_price, cost_amount
 
     @staticmethod
@@ -199,6 +341,45 @@ class AssetService:
     @staticmethod
     def _now_shanghai() -> datetime:
         return datetime.now(ZoneInfo("Asia/Shanghai"))
+
+    def _build_asset_cache_key(self, target_date: date, now_shanghai: datetime) -> str:
+        phase_bucket = self._get_pricing_phase_bucket(target_date, now_shanghai)
+        parts: tuple[object, ...]
+        if phase_bucket is None:
+            parts = (target_date.isoformat(),)
+        else:
+            parts = (target_date.isoformat(), phase_bucket)
+        return self.cache.build_key("asset_detail", parts)
+
+    def _build_cash_flow_cache_key(self, target_date: date, limit: int) -> str:
+        return self.cache.build_key(
+            "asset_cash_flows",
+            (
+                target_date.isoformat(),
+                limit,
+            ),
+        )
+
+    def _get_asset_cache_ttl(self, target_date: date, now_shanghai: datetime) -> int:
+        return self._get_list_cache_ttl(target_date, now_shanghai)
+
+    @staticmethod
+    def _get_list_cache_ttl(target_date: date, now_shanghai: datetime) -> int:
+        if target_date >= now_shanghai.date():
+            return 30
+        return 300
+
+    @staticmethod
+    def _get_pricing_phase_bucket(target_date: date, now_shanghai: datetime) -> Optional[str]:
+        if target_date < now_shanghai.date():
+            return None
+        if now_shanghai.time().hour < 15:
+            return "pre_close"
+        return "post_close"
+
+    @staticmethod
+    def _milli_to_decimal(value: int) -> Decimal:
+        return Decimal(value) / Decimal("1000")
 
 
 asset_service = AssetService()
